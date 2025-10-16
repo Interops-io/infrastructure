@@ -1,0 +1,16 @@
+# Add to .gitignore to exclude sensitive files and temporary data
+.env
+.env.local
+.env.*.local
+projects/*/.env
+projects/*/production/.env
+projects/*/staging/.env
+projects/*/development/.env
+traefik/acme.json
+volumes/*/data/
+*.log
+.DS_Store
+.vscode/
+*.swp
+*.swo
+*~

@@ -1,0 +1,200 @@
+version: '3.8'
+
+services:
+  # Reverse proxy og HTTPS
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-admin@example.com}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+      - --metrics.prometheus=true
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addServicesLabels=true
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/acme.json:/letsencrypt/acme.json
+      - traefik_logs:/var/log/traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=Host(`traefik.${INFRASTRUCTURE_DOMAIN:-localhost}`) && ClientIP(`127.0.0.1/32`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)"
+      - "traefik.http.routers.api.tls=true"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=${TRAEFIK_AUTH:-admin:$$2y$$10$$9jZXqp.MZj7kaKK9uX4aP.kK5ZQqS5kF5kF5kF5kF5kF5kF5kF}"
+    networks:
+      - web  # Only web traffic - NO backend access
+    environment:
+      - TRAEFIK_LOG_LEVEL=${TRAEFIK_LOG_LEVEL:-INFO}
+
+  # Webhook service for automatic deployment
+  webhook:
+    image: almir/webhook:latest
+    container_name: webhook
+    restart: unless-stopped
+    command: ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
+    volumes:
+      - ./hooks.json:/etc/webhook/hooks.json:ro
+      - ./scripts:/scripts:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./projects:/projects
+      - webhook_logs:/var/log/webhook
+      - deployment_metrics:/tmp
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webhook.rule=Host(`webhook.${INFRASTRUCTURE_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.webhook.tls=true"
+      - "traefik.http.routers.webhook.tls.certresolver=letsencrypt"
+      - "traefik.http.services.webhook.loadbalancer.server.port=9000"
+    networks:
+      - web  # Web access for webhook endpoint
+
+  # MariaDB for application databases
+  mariadb:
+    image: mariadb:10.11
+    container_name: mariadb-shared
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3306:3306"  # Localhost-only access for debugging
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme123}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./volumes/mariadb/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - database  # Database access only - no web
+    labels:
+      - "traefik.enable=false"
+
+  # Monitoring Stack - Prometheus + Grafana
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=720h'  # 30 days (30 * 24 hours)
+      - '--storage.tsdb.retention.size=10GB'   # Max 10GB storage
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+      - deployment_metrics:/tmp:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${INFRASTRUCTURE_DOMAIN:-localhost}`) && ClientIP(`127.0.0.1/32`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    networks:
+      - web         # Web access via Traefik
+      - monitoring  # Access to infrastructure metrics
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.status.rule=Host(`status.${INFRASTRUCTURE_DOMAIN:-localhost}`) && ClientIP(`127.0.0.1/32`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)"
+      - "traefik.http.routers.status.tls=true"
+      - "traefik.http.routers.status.tls.certresolver=letsencrypt"
+      - "traefik.http.services.status.loadbalancer.server.port=3000"
+    networks:
+      - web         # Web access via Traefik
+      - monitoring  # Access to monitoring data
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg:/dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+    command:
+      - '--housekeeping_interval=10s'
+      - '--docker_only=true'
+    labels:
+      - "traefik.enable=false"
+    networks:
+      - monitoring  # Infrastructure monitoring only
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    labels:
+      - "traefik.enable=false"
+    networks:
+      - monitoring  # Infrastructure monitoring only
+
+networks:
+  # Public web traffic (Traefik ↔ Internet)
+  web:
+    name: traefik_web
+    external: false
+
+  # Database access (Projects ↔ Database)  
+  database:
+    name: database_access
+    external: false
+    internal: true  # No external internet access
+    
+  # Monitoring network (Prometheus ↔ Grafana)
+  monitoring:
+    name: monitoring_network
+    external: false
+    internal: true
+
+volumes:
+  traefik_logs:
+  webhook_logs:
+  mariadb_data:
+  prometheus_data:
+  grafana_data:
+  deployment_metrics:

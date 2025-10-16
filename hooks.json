@@ -1,0 +1,190 @@
+[
+  {
+    "id": "deploy-github",
+    "execute-command": "/scripts/webhook-dispatcher.sh",
+    "command-working-directory": "/scripts",
+    "response-message": "Deployment started for repository: {{.Repository.Name}}",
+    "pass-arguments-to-command": [
+      {
+        "source": "payload",
+        "name": "repository.name"
+      },
+      {
+        "source": "payload", 
+        "name": "ref"
+      }
+    ],
+    "pass-environment-to-command": [
+      {
+        "envname": "WEBHOOK_REPOSITORY_NAME",
+        "source": "payload",
+        "name": "repository.name"
+      },
+      {
+        "envname": "WEBHOOK_REF",
+        "source": "payload",
+        "name": "ref"
+      },
+      {
+        "envname": "WEBHOOK_COMMIT_SHA",
+        "source": "payload",
+        "name": "head_commit.id"
+      },
+      {
+        "envname": "WEBHOOK_PUSHER_NAME",
+        "source": "payload",
+        "name": "pusher.name"
+      },
+      {
+        "envname": "WEBHOOK_BRANCH",
+        "source": "payload",
+        "name": "ref"
+      },
+      {
+        "envname": "WEBHOOK_REPOSITORY_CLONE_URL",
+        "source": "payload",
+        "name": "repository.clone_url"
+      },
+      {
+        "envname": "WEBHOOK_REPOSITORY_SSH_URL",
+        "source": "payload",
+        "name": "repository.ssh_url"
+      }
+    ],
+    "trigger-rule": {
+      "and": [
+        {
+          "match": {
+            "type": "payload-hash-sha256",
+            "secret": "your-webhook-secret-here",
+            "parameter": {
+              "source": "header",
+              "name": "X-Hub-Signature-256"
+            }
+          }
+        },
+        {
+          "or": [
+            {
+              "match": {
+                "type": "value",
+                "value": "refs/heads/main",
+                "parameter": {
+                  "source": "payload",
+                  "name": "ref"
+                }
+              }
+            },
+            {
+              "match": {
+                "type": "value",
+                "value": "refs/heads/staging",
+                "parameter": {
+                  "source": "payload",
+                  "name": "ref"
+                }
+              }
+            },
+            {
+              "match": {
+                "type": "value",
+                "value": "refs/heads/develop",
+                "parameter": {
+                  "source": "payload",
+                  "name": "ref"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "deploy-gitlab",
+    "execute-command": "/scripts/webhook-dispatcher.sh",
+    "command-working-directory": "/scripts",
+    "response-message": "GitLab deployment started for repository: {{.Project.Name}}",
+    "pass-arguments-to-command": [
+      {
+        "source": "payload",
+        "name": "project.name"
+      },
+      {
+        "source": "payload", 
+        "name": "ref"
+      }
+    ],
+    "pass-environment-to-command": [
+      {
+        "envname": "WEBHOOK_REPOSITORY_NAME",
+        "source": "payload",
+        "name": "project.name"
+      },
+      {
+        "envname": "WEBHOOK_REF",
+        "source": "payload",
+        "name": "ref"
+      },
+      {
+        "envname": "WEBHOOK_COMMIT_SHA",
+        "source": "payload",
+        "name": "checkout_sha"
+      },
+      {
+        "envname": "WEBHOOK_PUSHER_NAME",
+        "source": "payload",
+        "name": "user_name"
+      },
+      {
+        "envname": "WEBHOOK_BRANCH",
+        "source": "payload",
+        "name": "ref"
+      },
+      {
+        "envname": "WEBHOOK_REPOSITORY_CLONE_URL",
+        "source": "payload",
+        "name": "project.git_http_url"
+      },
+      {
+        "envname": "WEBHOOK_REPOSITORY_SSH_URL",
+        "source": "payload",
+        "name": "project.git_ssh_url"
+      }
+    ],
+    "trigger-rule": {
+      "or": [
+        {
+          "match": {
+            "type": "value",
+            "value": "refs/heads/main",
+            "parameter": {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "value": "refs/heads/staging",
+            "parameter": {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "value": "refs/heads/develop",
+            "parameter": {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
+        }
+      ]
+    }
+  }
+]
