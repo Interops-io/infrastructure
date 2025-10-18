@@ -48,6 +48,7 @@ if [[ -f "$SCRIPT_DIR/docker-compose.yml" && -f "$SCRIPT_DIR/.env.example" && -d
     RUNNING_FROM_REPO=true
     INSTALL_DIR="$SCRIPT_DIR"  # Use current directory when running from repo
     info "📁 Detected running from existing repository: $SCRIPT_DIR"
+    info "🔄 Will transfer ownership to infrastructure user for proper security"
 fi
 
 # Check if running as root
@@ -227,9 +228,11 @@ setup_repository() {
     log "📥 Setting up infrastructure repository..."
     
     if [[ "$RUNNING_FROM_REPO" == true ]]; then
-        # We're running from within the repo, copy it to the target location
+        # We're running from within the repo, transfer ownership to infrastructure user
         if [[ "$SCRIPT_DIR" == "$INSTALL_DIR" ]]; then
             log "✅ Already running from target directory: $INSTALL_DIR"
+            log "🔄 Transferring ownership to infrastructure user..."
+            sudo chown -R "$INFRASTRUCTURE_USER:$INFRASTRUCTURE_USER" "$INSTALL_DIR"
         else
             log "📋 Copying repository from $SCRIPT_DIR to $INSTALL_DIR..."
             sudo mkdir -p "$(dirname "$INSTALL_DIR")"
@@ -318,6 +321,7 @@ setup_environment() {
             error "Missing .env.example template file. Repository may not have cloned properly."
         fi
         
+        # Always use infrastructure user for proper ownership
         sudo -u "$INFRASTRUCTURE_USER" cp "${INSTALL_DIR}/.env.example" "$ENV_FILE"
         
         # Generate secure passwords
@@ -339,7 +343,7 @@ setup_environment() {
         export GENERATED_GRAFANA_PASS="$GRAFANA_PASS"
         export GENERATED_TRAEFIK_PASS="$TRAEFIK_ADMIN_PASS"
         
-        # Replace default values in .env file
+        # Replace default values in .env file using infrastructure user
         sudo -u "$INFRASTRUCTURE_USER" sed -i "s/your_secure_root_password_here_min_16_chars/$MYSQL_ROOT_PASS/g" "$ENV_FILE"
         sudo -u "$INFRASTRUCTURE_USER" sed -i "s/your_secure_grafana_password_here_min_16_chars/$GRAFANA_PASS/g" "$ENV_FILE"
         # Escape special characters in auth hash for sed
@@ -362,7 +366,7 @@ setup_environment() {
 setup_directories() {
     log "📁 Setting up directory structure..."
     
-    # Create required directories
+    # Create required directories using infrastructure user
     sudo -u "$INFRASTRUCTURE_USER" mkdir -p "${INSTALL_DIR}/volumes/mariadb/init"
     sudo -u "$INFRASTRUCTURE_USER" mkdir -p "${INSTALL_DIR}/traefik"
     
@@ -386,6 +390,7 @@ update_domain_references() {
     
     log "📝 Updating domain references to: $CONFIGURED_DOMAIN"
     
+    # Update files using infrastructure user
     # Update test-deployment.sh
     if [[ -f "${INSTALL_DIR}/scripts/test-deployment.sh" ]]; then
         sudo -u "$INFRASTRUCTURE_USER" sed -i "s/your-infrastructure-domain\.com/$CONFIGURED_DOMAIN/g" "${INSTALL_DIR}/scripts/test-deployment.sh"
@@ -398,15 +403,11 @@ update_domain_references() {
         log "✅ Updated deployment-status.sh"
     fi
     
-
-    
     # Update README.md examples
     if [[ -f "${INSTALL_DIR}/README.md" ]]; then
         sudo -u "$INFRASTRUCTURE_USER" sed -i "s/your-infrastructure-domain\.com/$CONFIGURED_DOMAIN/g" "${INSTALL_DIR}/README.md"
         log "✅ Updated README.md examples"
     fi
-    
-
     
     # Update Traefik middleware configuration
     if [[ -f "${INSTALL_DIR}/traefik/dynamic/middleware.yml" ]]; then
@@ -560,6 +561,12 @@ show_final_instructions() {
     echo "   sudo ufw allow 80/tcp"
     echo "   sudo ufw allow 443/tcp"
     echo "   sudo ufw --force enable"
+    echo
+    info "🔐 Working with Infrastructure User:"
+    echo "   Directory: $INSTALL_DIR (owned by $INFRASTRUCTURE_USER)"
+    echo "   Switch to infrastructure user: sudo su - $INFRASTRUCTURE_USER"
+    echo "   Edit files: sudo -u $INFRASTRUCTURE_USER nano $INSTALL_DIR/.env"
+    echo "   Run commands: sudo -u $INFRASTRUCTURE_USER [command]"
     echo
     echo "5. Test the installation:"
     echo "   sudo su - $INFRASTRUCTURE_USER"
