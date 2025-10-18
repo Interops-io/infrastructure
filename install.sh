@@ -122,7 +122,9 @@ check_requirements() {
 update_system() {
     log "📦 Updating system packages..."
     sudo apt update && sudo apt upgrade -y
-    sudo apt install -y curl wget git bc apache2-utils
+    sudo apt install -y curl wget git bc apache2-utils restic
+    
+    log "✅ System packages updated and backup tools installed"
 }
 
 # Create infrastructure user
@@ -135,6 +137,9 @@ create_user() {
         sudo usermod -aG sudo "$INFRASTRUCTURE_USER"
         log "✅ User '$INFRASTRUCTURE_USER' created"
     fi
+    
+    # Note: Infrastructure user should NOT have passwordless sudo for security
+    # All required packages and permissions are set up during installation
 }
 
 # Install Docker
@@ -573,7 +578,8 @@ show_final_instructions() {
     echo "   Directory: $INSTALL_DIR (owned by $INFRASTRUCTURE_USER)"
     echo "   Switch to infrastructure user: sudo su - $INFRASTRUCTURE_USER"
     echo "   Edit files: sudo -u $INFRASTRUCTURE_USER nano $INSTALL_DIR/.env"
-    echo "   Run commands: sudo -u $INFRASTRUCTURE_USER [command]"
+    echo "   Run Docker commands: docker-compose up -d (no sudo needed)"
+    echo "   Security: Infrastructure user has NO passwordless sudo access"
     echo
     echo "5. Test the installation:"
     echo "   sudo su - $INFRASTRUCTURE_USER"

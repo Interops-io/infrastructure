@@ -78,15 +78,11 @@ init_backup() {
     
     # Check if restic is installed
     if ! command -v restic &> /dev/null; then
-        log_info "Installing restic..."
-        if command -v apt &> /dev/null; then
-            sudo apt update && sudo apt install -y restic
-        elif command -v yum &> /dev/null; then
-            sudo yum install -y restic
-        else
-            log_error "Please install restic manually: https://restic.net/"
-            exit 1
-        fi
+        log_error "Restic is not installed. Please install it first:"
+        log_error "  Ubuntu/Debian: sudo apt install -y restic"
+        log_error "  CentOS/RHEL: sudo yum install -y restic"
+        log_error "  Or visit: https://restic.net/"
+        exit 1
     fi
     
     # Get backup repository location
