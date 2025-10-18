@@ -35,7 +35,7 @@ echo -e "${GREEN}✅ .env file found${NC}"
 
 # Start infrastructure
 echo -e "\n${YELLOW}📦 Starting infrastructure...${NC}"
-docker-compose up -d
+docker compose up -d
 
 # Wait for services to be ready
 echo -e "\n${YELLOW}⏳ Waiting for services to be ready...${NC}"
@@ -46,10 +46,20 @@ echo -e "\n${YELLOW}🔍 Checking service status...${NC}"
 services=("traefik" "webhook" "mariadb-shared" "prometheus" "grafana")
 
 for service in "${services[@]}"; do
-    if docker-compose ps --filter "name=$service" --format "table {{.Name}}\t{{.State}}" | grep -q "running"; then
+    # Use docker compose ps to check service status
+    status=$(docker compose ps --services --filter "status=running" | grep "^$service$" 2>/dev/null)
+    
+    if [ -n "$status" ]; then
         echo -e "${GREEN}✅ $service is running${NC}"
     else
-        echo -e "${RED}❌ $service is not running${NC}"
+        # Check if service exists but is not running
+        exists=$(docker compose ps --services | grep "^$service$" 2>/dev/null)
+        if [ -n "$exists" ]; then
+            service_status=$(docker compose ps "$service" --format "table {{.State}}" 2>/dev/null | tail -n +2)
+            echo -e "${RED}❌ $service is $service_status${NC}"
+        else
+            echo -e "${RED}❌ $service service not found${NC}"
+        fi
     fi
 done
 
