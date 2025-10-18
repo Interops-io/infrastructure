@@ -508,14 +508,21 @@ EOF
     log "✅ Backup automation configured: $SCHEDULE_DESC"
     log "✅ Backup logs will be written to: /var/log/infrastructure-backup.log"
     
+    # Initialize backup system first
+    log "🔧 Initializing backup system..."
+    sudo -u "$INFRASTRUCTURE_USER" bash -c "cd ${INSTALL_DIR} && ./scripts/backup.sh init" || {
+        warning "⚠️  Backup initialization failed - please run './scripts/backup.sh init' manually later"
+        return 0  # Don't fail the entire install for backup issues
+    }
+    
     # Test backup setup (dry run)
     log "🧪 Testing backup configuration..."
     sudo -u "$INFRASTRUCTURE_USER" bash -c "cd ${INSTALL_DIR} && ./scripts/backup.sh --dry-run" || {
-        warning "⚠️  Backup test failed - please check configuration manually"
-        return 1
+        warning "⚠️  Backup test failed - backup is configured but may need manual verification"
+        return 0  # Don't fail the entire install for backup test issues
     }
     
-    log "✅ Backup test successful"
+    log "✅ Backup system initialized and tested successfully"
     
     # Show backup status
     echo
