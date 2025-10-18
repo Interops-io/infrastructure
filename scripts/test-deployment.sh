@@ -65,9 +65,9 @@ done
 
 # Show URLs
 echo -e "\n${GREEN}🌐 Your infrastructure is available at:${NC}"
-DOMAIN=$(grep "INFRASTRUCTURE_DOMAIN" .env | cut -d '=' -f2)
+DOMAIN=$(grep "^INFRASTRUCTURE_DOMAIN=" .env | cut -d '=' -f2 | tr -d '\r\n' | sed 's/[[:space:]]*$//')
 echo "• Status Dashboard: https://status.$DOMAIN"
-echo "• Monitoring: https://monitoring.$DOMAIN"
+echo "• Monitoring: https://monitoring.$DOMAIN"  
 echo "• Prometheus: https://prometheus.$DOMAIN"
 echo "• Webhooks: https://webhook.$DOMAIN"
 echo "• Traefik Dashboard: https://traefik.$DOMAIN"
