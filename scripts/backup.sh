@@ -103,6 +103,13 @@ init_backup() {
             RESTIC_REPOSITORY="sftp:$sftp_path"
             ;;
         3)
+            echo ""
+            echo "S3 Compatible Storage Examples:"
+            echo "  AWS S3: s3.amazonaws.com (or s3.us-east-1.amazonaws.com)"
+            echo "  Hetzner: nbg1.your-objectstorage.com (check your console)"
+            echo "  DigitalOcean: nyc3.digitaloceanspaces.com"
+            echo "  Backblaze B2: s3.us-west-002.backblazeb2.com"
+            echo ""
             read -p "Enter S3 endpoint: " s3_endpoint
             read -p "Enter S3 bucket: " s3_bucket
             read -p "Enter AWS Access Key ID: " aws_access_key
@@ -457,10 +464,12 @@ case "${1:-full}" in
         fi
         
         # Test repository access (but don't create backup)
-        if restic --repo "$RESTIC_REPOSITORY" snapshots --latest 1 >/dev/null 2>&1; then
+        log_info "Testing repository access..."
+        if timeout 30 restic --repo "$RESTIC_REPOSITORY" snapshots --latest 1 >/dev/null 2>&1; then
             log_success "✅ Repository access successful"
         else
-            log_warning "⚠️  Repository access failed - may need initialization"
+            log_warning "⚠️  Repository access test timed out or failed"
+            log_info "This is normal for a newly initialized repository"
         fi
         
         # Test Docker access
