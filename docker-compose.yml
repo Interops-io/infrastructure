@@ -47,12 +47,7 @@ services:
     image: almir/webhook:latest
     container_name: webhook
     restart: unless-stopped
-    command: 
-      - /bin/sh
-      - -c
-      - |
-        apk add --no-cache bash git docker-cli &&
-        exec webhook -verbose -hooks=/etc/webhook/hooks.json -hotreload
+    command: ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
     environment:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-secret-change-me}
     volumes:

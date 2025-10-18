@@ -52,36 +52,50 @@
       }
     ],
     "trigger-rule": {
-      "or": [
+      "and": [
         {
           "match": {
-            "type": "value",
-            "value": "refs/heads/main",
+            "type": "payload-hmac-sha256",
+            "secret": "${WEBHOOK_SECRET}",
             "parameter": {
-              "source": "payload",
-              "name": "ref"
+              "source": "header",
+              "name": "X-Hub-Signature-256"
             }
           }
         },
         {
-          "match": {
-            "type": "value",
-            "value": "refs/heads/staging",
-            "parameter": {
-              "source": "payload",
-              "name": "ref"
+          "or": [
+            {
+              "match": {
+                "type": "value",
+                "value": "refs/heads/main",
+                "parameter": {
+                  "source": "payload",
+                  "name": "ref"
+                }
+              }
+            },
+            {
+              "match": {
+                "type": "value",
+                "value": "refs/heads/staging",
+                "parameter": {
+                  "source": "payload",
+                  "name": "ref"
+                }
+              }
+            },
+            {
+              "match": {
+                "type": "value",
+                "value": "refs/heads/develop",
+                "parameter": {
+                  "source": "payload",
+                  "name": "ref"
+                }
+              }
             }
-          }
-        },
-        {
-          "match": {
-            "type": "value",
-            "value": "refs/heads/develop",
-            "parameter": {
-              "source": "payload",
-              "name": "ref"
-            }
-          }
+          ]
         }
       ]
     }
