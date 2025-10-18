@@ -20,8 +20,6 @@ services:
       - --metrics.prometheus=true
       - --metrics.prometheus.addEntryPointsLabels=true
       - --metrics.prometheus.addServicesLabels=true
-      - --accesslog=true
-      - --accesslog.format=json
     ports:
       - "80:80"
       - "443:443"
@@ -50,6 +48,8 @@ services:
     container_name: webhook
     restart: unless-stopped
     command: ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
+    environment:
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-secret-change-me}
     volumes:
       - ./hooks.json:/etc/webhook/hooks.json:ro
       - ./scripts:/scripts:ro
