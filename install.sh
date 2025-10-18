@@ -46,6 +46,7 @@ info() {
 # Check for infrastructure repository markers
 if [[ -f "$SCRIPT_DIR/docker-compose.yml" && -f "$SCRIPT_DIR/.env.example" && -d "$SCRIPT_DIR/scripts" ]]; then
     RUNNING_FROM_REPO=true
+    INSTALL_DIR="$SCRIPT_DIR"  # Use current directory when running from repo
     info "📁 Detected running from existing repository: $SCRIPT_DIR"
 fi
 
