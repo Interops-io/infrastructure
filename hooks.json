@@ -52,50 +52,36 @@
       }
     ],
     "trigger-rule": {
-      "and": [
+      "or": [
         {
           "match": {
-            "type": "payload-hash-sha256",
-            "secret": "${WEBHOOK_SECRET}",
+            "type": "value",
+            "value": "refs/heads/main",
             "parameter": {
-              "source": "header",
-              "name": "X-Hub-Signature-256"
+              "source": "payload",
+              "name": "ref"
             }
           }
         },
         {
-          "or": [
-            {
-              "match": {
-                "type": "value",
-                "value": "refs/heads/main",
-                "parameter": {
-                  "source": "payload",
-                  "name": "ref"
-                }
-              }
-            },
-            {
-              "match": {
-                "type": "value",
-                "value": "refs/heads/staging",
-                "parameter": {
-                  "source": "payload",
-                  "name": "ref"
-                }
-              }
-            },
-            {
-              "match": {
-                "type": "value",
-                "value": "refs/heads/develop",
-                "parameter": {
-                  "source": "payload",
-                  "name": "ref"
-                }
-              }
+          "match": {
+            "type": "value",
+            "value": "refs/heads/staging",
+            "parameter": {
+              "source": "payload",
+              "name": "ref"
             }
-          ]
+          }
+        },
+        {
+          "match": {
+            "type": "value",
+            "value": "refs/heads/develop",
+            "parameter": {
+              "source": "payload",
+              "name": "ref"
+            }
+          }
         }
       ]
     }
