@@ -252,22 +252,31 @@ get_framework_or_services() {
             if [[ -n "$services_str" ]]; then
                 IFS=',' read -ra SELECTED_SERVICES <<< "$services_str"
                 
-                # If database is in the services, ask which type
+                # If database is in the services, ask which type (only for setups that need it)
                 if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]]; then
-                    # Remove generic 'database' from array
-                    SELECTED_SERVICES=("${SELECTED_SERVICES[@]/database}")
-                    
-                    # Ask for database type
-                    get_database_type
+                    # Check if preset already specifies database type
+                    if [[ -n "${QUICK_SETUPS[${FRAMEWORK}_database_type]}" ]]; then
+                        # Use preset database type, replace 'database' with specific type
+                        SELECTED_SERVICES=("${SELECTED_SERVICES[@]/database}")
+                        SELECTED_SERVICES+=("${QUICK_SETUPS[${FRAMEWORK}_database_type]}")
+                    else
+                        # Remove generic 'database' from array and ask user
+                        SELECTED_SERVICES=("${SELECTED_SERVICES[@]/database}")
+                        # Ask for database type
+                        get_database_type
+                    fi
                 fi
             else
                 SELECTED_SERVICES=()
             fi
             
-            # Parse environments from config (override default if specified)
-            local env_str="${QUICK_SETUPS[${FRAMEWORK}_environments]}"
-            if [[ -n "$env_str" ]]; then
-                IFS=',' read -ra ENVIRONMENTS <<< "$env_str"
+            # DON'T override user's environment selection with config
+            # Parse environments from config only if user hasn't selected yet
+            if [[ ${#ENVIRONMENTS[@]} -eq 0 ]]; then
+                local env_str="${QUICK_SETUPS[${FRAMEWORK}_environments]}"
+                if [[ -n "$env_str" ]]; then
+                    IFS=',' read -ra ENVIRONMENTS <<< "$env_str"
+                fi
             fi
             
             # Load volumes configuration
@@ -537,7 +546,6 @@ cat << 'ENVEOF'
       - REDIS_HOST=redis
 ENVEOF
 fi)
-$(generate_volumes_section)
     networks:
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
 cat << 'ENVEOF'
