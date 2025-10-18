@@ -43,7 +43,7 @@ sleep 30
 
 # Check service status
 echo -e "\n${YELLOW}🔍 Checking service status...${NC}"
-services=("traefik" "webhook" "mariadb-shared" "prometheus" "grafana")
+services=("traefik" "webhook" "mariadb" "prometheus" "grafana" "cadvisor" "node-exporter")
 
 for service in "${services[@]}"; do
     # Use docker compose ps to check service status
