@@ -377,8 +377,6 @@ generate_docker_compose() {
     log_info "Generating docker-compose.yml for $env environment..."
     
     cat > "$compose_file" << EOF
-version: '3.8'
-
 services:
   app:
     build:
@@ -865,6 +863,18 @@ EOF
             cat >> "$post_deploy_app" << 'EOF'
 
 # Laravel-specific tasks
+echo "Setting up Laravel permissions and optimization..."
+
+# Set proper ownership and permissions for storage and cache directories
+chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+
+echo "Running Laravel optimization commands..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan event:cache
+
 echo "Running Laravel migrations..."
 php artisan migrate --force
 
