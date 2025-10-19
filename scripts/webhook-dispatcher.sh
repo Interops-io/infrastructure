@@ -66,8 +66,17 @@ get_environment_for_branch() {
 
 # Determine repository clone URL
 get_repository_url() {
-    # Priority order: webhook provided URLs > fallback construction
-    if [ -n "$REPOSITORY_CLONE_URL" ]; then
+    # Check if SSH keys are available for private repositories
+    local has_ssh_keys=false
+    if [ -d "/root/.ssh-keys" ] && ([ -f "/root/.ssh-keys/id_rsa" ] || [ -f "/root/.ssh-keys/id_ed25519" ]); then
+        has_ssh_keys=true
+    fi
+    
+    # Priority order: SSH URL when keys available > HTTPS URL > fallback construction
+    if [ "$has_ssh_keys" = true ] && [ -n "$REPOSITORY_SSH_URL" ]; then
+        log "Using SSH URL for private repository (SSH keys available)"
+        echo "$REPOSITORY_SSH_URL"
+    elif [ -n "$REPOSITORY_CLONE_URL" ]; then
         echo "$REPOSITORY_CLONE_URL"
     elif [ -n "$REPOSITORY_SSH_URL" ]; then
         echo "$REPOSITORY_SSH_URL"

@@ -6,11 +6,26 @@ services:
     user: root
     command: |
       sh -c "
+        # Set queue permissions for webhook/deployer communication
         chmod 777 /queue
         echo 'Queue permissions set to 777'
+        
+        # Set SSH key permissions if they exist
+        if [ -d /ssh-keys ]; then
+          echo 'Setting SSH key permissions...'
+          find /ssh-keys -name 'id_rsa' -exec chmod 600 {} \; 2>/dev/null || true
+          find /ssh-keys -name 'id_ed25519' -exec chmod 600 {} \; 2>/dev/null || true
+          find /ssh-keys -name '*.pub' -exec chmod 644 {} \; 2>/dev/null || true
+          echo 'SSH key permissions set'
+        else
+          echo 'No SSH keys directory found, skipping SSH setup'
+        fi
+        
+        echo 'Init permissions complete'
       "
     volumes:
       - deployment_queue:/queue
+      - ./ssh-keys:/ssh-keys
     restart: "no"
 
   # Reverse proxy og HTTPS
