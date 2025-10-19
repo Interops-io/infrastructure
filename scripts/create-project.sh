@@ -850,6 +850,27 @@ sleep 5
 
 EOF
 
+    # Add framework-specific setup that needs to run outside containers (as root)
+    case $FRAMEWORK in
+        laravel)
+            cat >> "$post_deploy" << 'EOF'
+# Laravel: Create storage directory structure (runs as root on deployer)
+echo "Setting up Laravel storage directories with proper permissions..."
+mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public
+mkdir -p bootstrap/cache
+
+# Set ownership to www-data (UID:GID 33:33) for web server compatibility
+chown -R 33:33 storage bootstrap/cache 2>/dev/null || true
+# Set permissions: 775 for directories, 664 for files
+find storage bootstrap/cache -type d -exec chmod 775 {} \; 2>/dev/null || true
+find storage bootstrap/cache -type f -exec chmod 664 {} \; 2>/dev/null || true
+
+echo "✅ Laravel storage setup completed"
+
+EOF
+            ;;
+    esac
+
     # Create app-specific post-deploy script
     local post_deploy_app="$PROJECTS_DIR/$PROJECT_NAME/post_deploy.app.sh"
     
@@ -866,18 +887,10 @@ EOF
             cat >> "$post_deploy_app" << 'EOF'
 
 # Laravel-specific tasks
-echo "Setting up Laravel permissions and optimization..."
+echo "Setting up Laravel optimization..."
 
-# Create Laravel storage directories if they don't exist
-mkdir -p /var/www/html/storage/logs
-mkdir -p /var/www/html/storage/framework/cache
-mkdir -p /var/www/html/storage/framework/sessions
-mkdir -p /var/www/html/storage/framework/views
-mkdir -p /var/www/html/storage/app/public
-mkdir -p /var/www/html/bootstrap/cache
-
-# Set proper permissions for storage and cache directories (run as current user)
-chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+# Storage directories are created by general post-deploy hook (with proper permissions)
+echo "Storage directories already set up by post-deploy hook"
 
 echo "Running Laravel optimization commands..."
 php artisan config:cache
