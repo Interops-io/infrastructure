@@ -239,6 +239,16 @@ export BASE_PROJECT_DIR
 export PROJECTS_DIR
 export BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
+# Set common Docker Compose variables that projects typically need
+export PROJECT_NAME="${PROJECT_NAME:-$REPOSITORY_NAME}"
+export suffix="${suffix:-$ENVIRONMENT}"
+
+log "Environment variables set:"
+log "  PROJECT_NAME=$PROJECT_NAME"
+log "  suffix=$suffix"
+log "  REPOSITORY_NAME=$REPOSITORY_NAME"
+log "  ENVIRONMENT=$ENVIRONMENT"
+
 # Function to execute hooks
 execute_hooks() {
     local hook_pattern=$1
