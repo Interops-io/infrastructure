@@ -91,14 +91,27 @@ clone_repository_with_docker() {
     
     log "Cloning repository using Docker: $repo_url (branch: $branch)"
     
-    # Remove existing directory
+    # Remove existing directory forcefully
     log "Attempting to remove existing directory: $target_dir"
     log "Current working directory: $(pwd)"
     if [ -d "$target_dir" ]; then
-        log "Directory $target_dir exists, removing..."
-        rm -rf "$target_dir"
+        log "Directory $target_dir exists, removing forcefully..."
+        # Try multiple removal methods to ensure it's gone
+        rm -rf "$target_dir" 2>/dev/null || true
+        chmod -R 777 "$target_dir" 2>/dev/null || true
+        rm -rf "$target_dir" 2>/dev/null || true
+        # Use find to remove any stubborn files
+        find "$target_dir" -type f -delete 2>/dev/null || true
+        find "$target_dir" -type d -delete 2>/dev/null || true
+        
         if [ -d "$target_dir" ]; then
-            log "❌ Failed to remove $target_dir"
+            log "❌ Failed to remove $target_dir completely"
+            log "Directory contents:"
+            ls -la "$target_dir" 2>/dev/null || true
+            log "Directory permissions:"
+            ls -ld "$target_dir" 2>/dev/null || true
+            log "Checking for any docker containers using this path..."
+            docker ps --filter "volume=$parent_dir" 2>/dev/null || true
         else
             log "✅ Successfully removed $target_dir"
         fi
@@ -125,6 +138,13 @@ clone_repository_with_docker() {
     # Mount the parent directory so we can write to the target
     local parent_dir=$(dirname "$(pwd)/$target_dir")
     local target_name=$(basename "$target_dir")
+    
+    log "Debug paths:"
+    log "  Current dir: $(pwd)"
+    log "  Target dir: $target_dir"
+    log "  Parent dir: $parent_dir" 
+    log "  Target name: $target_name"
+    log "  Full target path: $(pwd)/$target_dir"
     
     if [ -n "$ssh_volume_args" ]; then
         # With SSH keys - explicitly specify which key to use
