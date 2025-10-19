@@ -887,10 +887,6 @@ EOF
             cat >> "$post_deploy_app" << 'EOF'
 
 # Laravel-specific tasks
-echo "Setting up Laravel optimization..."
-
-# Storage directories are created by general post-deploy hook (with proper permissions)
-echo "Storage directories already set up by post-deploy hook"
 
 echo "Running Laravel optimization commands..."
 php artisan config:cache
