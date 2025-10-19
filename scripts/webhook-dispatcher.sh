@@ -412,9 +412,12 @@ else
     log "❌ docker-compose.yml not found in $(pwd)"
 fi
 
+# Set commit hash for image tagging (use short 8-character hash)
+export COMMIT_HASH="${COMMIT_SHA:0:8}"
+
 docker compose pull
 docker compose build --pull
-docker compose up -d --force-recreate
+COMMIT_HASH="${COMMIT_SHA:0:8}" docker compose up -d --force-recreate
 
 # Record successful deployment metrics for Grafana
 echo "deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)" > "/tmp/deployment_metrics_$$_$(date +%s).prom"

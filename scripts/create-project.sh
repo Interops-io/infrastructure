@@ -369,9 +369,9 @@ generate_docker_compose() {
     # Determine container suffix
     local suffix=""
     case $env in
-        production) suffix="prod" ;;
+        production) suffix="production" ;;
         staging) suffix="staging" ;;
-        development) suffix="dev" ;;
+        development) suffix="development" ;;
     esac
     
     log_info "Generating docker-compose.yml for $env environment..."
@@ -382,6 +382,7 @@ services:
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
+    image: ${PROJECT_NAME}-app-${suffix}:\${COMMIT_HASH:-latest}
     container_name: ${PROJECT_NAME}-app-${suffix}
     restart: unless-stopped
     env_file:
@@ -449,6 +450,7 @@ EOF
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
+    image: ${PROJECT_NAME}-queue-${suffix}:\${COMMIT_HASH:-latest}
     container_name: ${PROJECT_NAME}-queue-${suffix}
     restart: unless-stopped
     command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
@@ -501,6 +503,7 @@ EOF
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
+    image: ${PROJECT_NAME}-scheduler-${suffix}:\${COMMIT_HASH:-latest}
     container_name: ${PROJECT_NAME}-scheduler-${suffix}
     restart: unless-stopped
     command: >
