@@ -298,11 +298,11 @@ execute_hooks() {
     
     # Execute the prioritized general hook first
     if [ -n "$general_hook" ]; then
-        local hook_dir=$(dirname "$general_hook")
         log "Executing general $hook_stage hook: $(basename "$general_hook") (from $general_source)"
         chmod +x "$general_hook" 2>/dev/null || log "Warning: Could not make $general_hook executable"
-        cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; return 1; }
-        if ./"$(basename "$general_hook")"; then
+        # Run general hook from PROJECT_DIR (environment directory) where volumes are mounted
+        cd "$PROJECT_DIR" || { log "ERROR: Failed to enter project directory $PROJECT_DIR"; return 1; }
+        if "$general_hook"; then
             log "✅ General $hook_stage hook completed successfully"
         else
             log "⚠️ General $hook_stage hook failed (continuing anyway)"
