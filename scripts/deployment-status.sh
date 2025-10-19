@@ -73,14 +73,9 @@ fi
 # Check for recent deployments
 echo "📋 Recent Deployment Activity"
 echo "============================="
-if [ -f "/var/log/webhook/dispatcher.log" ]; then
-    echo "Last 10 deployment events:"
-    tail -n 10 /var/log/webhook/dispatcher.log | while read line; do
-        echo "  $line"
-    done
-else
-    echo "❌ No deployment logs found"
-fi
+echo "Recent deployment logs (from webhook container):"
+# Show recent webhook logs that contain dispatcher output
+docker logs webhook --tail 20 2>/dev/null | grep -E '\[DISPATCHER\]|METRICS:' | tail -10 || echo "❌ No deployment logs found"
 
 echo ""
 echo "🔗 Quick Links"

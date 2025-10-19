@@ -20,11 +20,10 @@ BRANCH_NAME=$(echo "$BRANCH" | sed 's|refs/heads/||')
 
 # Configuration
 PROJECTS_DIR="/projects"
-LOG_FILE="/var/log/webhook/dispatcher.log"
 
 # Logging function
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') [DISPATCHER] $1" | tee -a "$LOG_FILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [DISPATCHER] $1"
 }
 
 # Error handling
@@ -291,6 +290,8 @@ if [ -f "$PROJECT_DIR/docker-compose.yml" ]; then
     
     # Record successful deployment metrics for Grafana
     echo "deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)" > "/tmp/deployment_metrics_$$_$(date +%s).prom"
+    # Also log to stdout for debugging
+    echo "METRICS: deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)"
     
     log "✅ Main deployment completed"
 else

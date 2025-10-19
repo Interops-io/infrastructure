@@ -47,7 +47,7 @@ services:
     image: almir/webhook:latest
     container_name: webhook
     restart: unless-stopped
-    entrypoint: ["/scripts/init-webhook.sh"]
+    command: ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
     environment:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-secret-change-me}
     volumes:
@@ -55,7 +55,6 @@ services:
       - ./scripts:/scripts:ro
       - /var/run/docker.sock:/var/run/docker.sock
       - ./projects:/projects
-      - webhook_logs:/var/log/webhook
       - deployment_metrics:/tmp
       # SSH keys for private repository access
       - ./ssh-keys:/root/.ssh-keys:ro
