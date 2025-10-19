@@ -91,34 +91,6 @@ clone_repository_with_docker() {
     
     log "Cloning repository using Docker: $repo_url (branch: $branch)"
     
-    # Remove existing directory forcefully
-    log "Attempting to remove existing directory: $target_dir"
-    log "Current working directory: $(pwd)"
-    if [ -d "$target_dir" ]; then
-        log "Directory $target_dir exists, removing forcefully..."
-        # Try multiple removal methods to ensure it's gone
-        rm -rf "$target_dir" 2>/dev/null || true
-        chmod -R 777 "$target_dir" 2>/dev/null || true
-        rm -rf "$target_dir" 2>/dev/null || true
-        # Use find to remove any stubborn files
-        find "$target_dir" -type f -delete 2>/dev/null || true
-        find "$target_dir" -type d -delete 2>/dev/null || true
-        
-        if [ -d "$target_dir" ]; then
-            log "❌ Failed to remove $target_dir completely"
-            log "Directory contents:"
-            ls -la "$target_dir" 2>/dev/null || true
-            log "Directory permissions:"
-            ls -ld "$target_dir" 2>/dev/null || true
-            log "Checking for any docker containers using this path..."
-            docker ps --filter "volume=$parent_dir" 2>/dev/null || true
-        else
-            log "✅ Successfully removed $target_dir"
-        fi
-    else
-        log "Directory $target_dir does not exist"
-    fi
-    
     # Check if we have SSH keys available for private repositories
     # We need to mount the SSH keys from the host path, not from the container path
     local ssh_volume_args=""
@@ -157,6 +129,15 @@ clone_repository_with_docker() {
         fi
         
 
+        
+        # Check and remove directory inside the alpine/git container before cloning
+        log "Checking for existing directory in alpine/git workspace..."
+        docker run --rm \
+            -v "$parent_dir:/workspace" \
+            -w /workspace \
+            $ssh_volume_args \
+            --entrypoint sh \
+            alpine/git -c "if [ -d '$target_name' ]; then echo 'Removing existing $target_name directory in container'; rm -rf '$target_name'; else echo 'No existing $target_name directory in container'; fi"
         
         if docker run --rm \
             -v "$parent_dir:/workspace" \
