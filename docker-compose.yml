@@ -1,4 +1,18 @@
 services:
+  # Init container to set up permissions
+  init-permissions:
+    image: alpine:latest
+    container_name: init-permissions
+    user: root
+    command: |
+      sh -c "
+        chmod 777 /queue
+        echo 'Queue permissions set to 777'
+      "
+    volumes:
+      - deployment_queue:/queue
+    restart: "no"
+
   # Reverse proxy og HTTPS
   traefik:
     image: traefik:v3.0
@@ -48,6 +62,8 @@ services:
     container_name: webhook
     restart: unless-stopped
     command: ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload", "-template"]
+    depends_on:
+      - init-permissions
     environment:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-secret-change-me}
     volumes:
@@ -73,6 +89,8 @@ services:
       dockerfile: Dockerfile.deployer
     container_name: deployer
     restart: unless-stopped
+    depends_on:
+      - init-permissions
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./projects:/projects
