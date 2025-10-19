@@ -581,7 +581,7 @@ EOF
     restart: unless-stopped
     command: redis-server ${redis_persistence} --loglevel warning --maxmemory ${redis_memory} --maxmemory-policy allkeys-lru
 $(if [[ "$env" == "production" ]]; then
-cat << 'ENVEOF'
+cat << ENVEOF
     volumes:
       - ${PROJECT_NAME}_${suffix}_redis_data:/data
 ENVEOF
@@ -643,12 +643,12 @@ EOF
         cat >> "$compose_file" << EOF
 volumes:
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]] && [[ "$env" == "production" ]]; then
-cat << 'ENVEOF'
+cat << ENVEOF
   ${PROJECT_NAME}_${suffix}_redis_data:
 ENVEOF
 fi)
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
+cat << ENVEOF
   ${PROJECT_NAME}_${suffix}_mariadb_data:
 ENVEOF
 fi)
