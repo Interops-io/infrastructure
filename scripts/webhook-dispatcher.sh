@@ -112,12 +112,13 @@ clone_repository_with_docker() {
     local target_name=$(basename "$target_dir")
     
     if [ -n "$ssh_volume_args" ]; then
-        # With SSH keys - explicitly specify which key to use (use mounted path)
+        # With SSH keys - explicitly specify which key to use
+        # Note: Keys are checked at /root/.ssh-keys/ but mounted to alpine/git at /root/.ssh/
         local ssh_key_path=""
         if [ -f "/root/.ssh-keys/id_ed25519" ]; then
-            ssh_key_path="/root/.ssh-keys/id_ed25519"
+            ssh_key_path="/root/.ssh/id_ed25519"
         elif [ -f "/root/.ssh-keys/id_rsa" ]; then
-            ssh_key_path="/root/.ssh-keys/id_rsa"
+            ssh_key_path="/root/.ssh/id_rsa"
         fi
         
         if docker run --rm \
