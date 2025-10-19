@@ -894,13 +894,11 @@ EOF
 echo "✅ App post-deploy tasks completed"
 EOF
 
-    # Update main post-deploy to use the app script
+    # Update main post-deploy hook (service-specific hooks are handled automatically)
     cat >> "$post_deploy" << 'EOF'
-# Execute app-specific tasks inside the container
-echo "Running app-specific post-deploy tasks..."
-docker compose cp post_deploy.app.sh app:/tmp/post_deploy.app.sh
-docker compose exec -T app chmod +x /tmp/post_deploy.app.sh
-docker compose exec -T app /tmp/post_deploy.app.sh
+# General post-deploy tasks (service-specific hooks run automatically)
+echo "General post-deploy tasks completed"
+echo "Note: Service-specific hooks (post_deploy.app.sh, etc.) are handled automatically"
 EOF
 
     chmod +x "$post_deploy_app"

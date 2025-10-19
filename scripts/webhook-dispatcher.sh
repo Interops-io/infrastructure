@@ -254,38 +254,93 @@ execute_hooks() {
     local hook_pattern=$1
     local hook_stage=$2
     
-    # Look for hooks in both base and environment directories
-    for hook_dir in "$BASE_PROJECT_DIR" "$PROJECT_DIR"; do
-        if [ -d "$hook_dir" ]; then
-            # Execute specific service hooks (e.g., pre_deploy.app.sh, post_deploy.redis.sh)
-            for hook_file in "$hook_dir"/${hook_pattern}.*.sh; do
-                if [ -f "$hook_file" ]; then
-                    local service_name=$(echo "$hook_file" | sed "s/.*${hook_pattern}\.\(.*\)\.sh/\1/")
-                    log "Executing $hook_stage hook for service '$service_name': $(basename "$hook_file")"
-                    chmod +x "$hook_file" 2>/dev/null || log "Warning: Could not make $hook_file executable"
-                    cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; continue; }
-                    if ./"$(basename "$hook_file")"; then
-                        log "✅ $hook_stage hook for '$service_name' completed successfully"
-                    else
-                        log "⚠️ $hook_stage hook for '$service_name' failed (continuing anyway)"
-                    fi
-                fi
-            done
-            
-            # Execute general hook (e.g., pre_deploy.sh, post_deploy.sh)
-            local general_hook="$hook_dir/${hook_pattern}.sh"
-            if [ -f "$general_hook" ]; then
-                log "Executing general $hook_stage hook: $(basename "$general_hook")"
-                chmod +x "$general_hook" 2>/dev/null || log "Warning: Could not make $general_hook executable"
-                cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; return 1; }
-                if ./"$(basename "$general_hook")"; then
-                    log "✅ General $hook_stage hook completed successfully"
-                else
-                    log "⚠️ General $hook_stage hook failed (continuing anyway)"
-                fi
+    # Build prioritized list of service hooks (environment-specific overrides base)
+    declare -A service_hooks
+    declare -A hook_sources
+    
+    # First, collect hooks from base project directory (lower priority)
+    if [ -d "$BASE_PROJECT_DIR" ]; then
+        for hook_file in "$BASE_PROJECT_DIR"/${hook_pattern}.*.sh; do
+            if [ -f "$hook_file" ]; then
+                local service_name=$(echo "$hook_file" | sed "s/.*${hook_pattern}\.\(.*\)\.sh/\1/")
+                service_hooks["$service_name"]="$hook_file"
+                hook_sources["$service_name"]="base"
+            fi
+        done
+    fi
+    
+    # Then, collect hooks from environment directory (higher priority - overrides base)
+    if [ -d "$PROJECT_DIR" ]; then
+        for hook_file in "$PROJECT_DIR"/${hook_pattern}.*.sh; do
+            if [ -f "$hook_file" ]; then
+                local service_name=$(echo "$hook_file" | sed "s/.*${hook_pattern}\.\(.*\)\.sh/\1/")
+                service_hooks["$service_name"]="$hook_file"
+                hook_sources["$service_name"]="$ENVIRONMENT"
+            fi
+        done
+    fi
+    
+    # Execute prioritized service hooks
+    for service_name in "${!service_hooks[@]}"; do
+        local hook_file="${service_hooks[$service_name]}"
+        local source="${hook_sources[$service_name]}"
+        local hook_dir=$(dirname "$hook_file")
+        
+        log "Executing $hook_stage hook for service '$service_name': $(basename "$hook_file") (from $source)"
+        chmod +x "$hook_file" 2>/dev/null || log "Warning: Could not make $hook_file executable"
+        cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; continue; }
+        
+        # Execute service-specific hooks inside their respective containers
+        local script_name=$(basename "$hook_file")
+        local container_script_path="/tmp/$script_name"
+        
+        if docker compose cp "$script_name" "$service_name:$container_script_path" 2>/dev/null; then
+            log "Running $script_name inside $service_name container"
+            if docker compose exec -T "$service_name" chmod +x "$container_script_path" && \
+               docker compose exec -T "$service_name" bash -c "cd /var/www/html 2>/dev/null || cd /; $container_script_path"; then
+                log "✅ $hook_stage hook for '$service_name' completed successfully"
+            else
+                log "⚠️ $hook_stage hook for '$service_name' failed (continuing anyway)"
+            fi
+        else
+            log "⚠️ Could not copy $script_name to $service_name container, running on deployer instead"
+            # Fallback to running on deployer container
+            if ./"$script_name"; then
+                log "✅ $hook_stage hook for '$service_name' completed successfully (fallback)"
+            else
+                log "⚠️ $hook_stage hook for '$service_name' failed (continuing anyway)"
             fi
         fi
     done
+    
+    # Execute general hook with environment-specific prioritization
+    local general_hook=""
+    local general_source=""
+    
+    # Check base project directory first (lower priority)
+    if [ -f "$BASE_PROJECT_DIR/${hook_pattern}.sh" ]; then
+        general_hook="$BASE_PROJECT_DIR/${hook_pattern}.sh"
+        general_source="base"
+    fi
+    
+    # Check environment directory (higher priority - overrides base)
+    if [ -f "$PROJECT_DIR/${hook_pattern}.sh" ]; then
+        general_hook="$PROJECT_DIR/${hook_pattern}.sh"
+        general_source="$ENVIRONMENT"
+    fi
+    
+    # Execute the prioritized general hook
+    if [ -n "$general_hook" ]; then
+        local hook_dir=$(dirname "$general_hook")
+        log "Executing general $hook_stage hook: $(basename "$general_hook") (from $general_source)"
+        chmod +x "$general_hook" 2>/dev/null || log "Warning: Could not make $general_hook executable"
+        cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; return 1; }
+        if ./"$(basename "$general_hook")"; then
+            log "✅ General $hook_stage hook completed successfully"
+        else
+            log "⚠️ General $hook_stage hook failed (continuing anyway)"
+        fi
+    fi
 }
 
 # Standard deployment process
