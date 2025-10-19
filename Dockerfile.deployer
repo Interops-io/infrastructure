@@ -17,12 +17,10 @@ RUN apk add --no-cache \
 # Create working directory
 WORKDIR /app
 
-# Copy scripts
+# Copy scripts and set permissions
 COPY scripts/ /scripts/
-RUN chmod +x /scripts/*.sh
-
-# Create a helper script to ensure mounted scripts are executable
-RUN echo '#!/bin/sh\nchmod +x /scripts/*.sh 2>/dev/null || true\nexec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /scripts/*.sh /entrypoint.sh
 
 # Create required directories
 RUN mkdir -p /queue /projects /root/.ssh
