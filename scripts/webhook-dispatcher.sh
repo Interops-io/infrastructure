@@ -112,14 +112,21 @@ clone_repository_with_docker() {
     local target_name=$(basename "$target_dir")
     
     if [ -n "$ssh_volume_args" ]; then
-        # With SSH keys
+        # With SSH keys - explicitly specify which key to use
+        local ssh_key_path=""
+        if [ -f "/root/.ssh-keys/id_ed25519" ]; then
+            ssh_key_path="/root/.ssh/id_ed25519"
+        elif [ -f "/root/.ssh-keys/id_rsa" ]; then
+            ssh_key_path="/root/.ssh/id_rsa"
+        fi
+        
         if docker run --rm \
             -v "$parent_dir:/workspace" \
             -w /workspace \
             $ssh_volume_args \
-            -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $ssh_key_path" \
             alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_name"; then
-            log "✅ Repository cloned successfully with SSH"
+            log "✅ Repository cloned successfully with SSH key: $ssh_key_path"
             return 0
         else
             log "❌ Failed to clone repository with SSH. Check SSH key permissions and repository access."
