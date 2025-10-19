@@ -14,3 +14,9 @@ volumes/*/data/
 *.swp
 *.swo
 *~
+
+# SSH keys for private repository access
+ssh-keys/id_rsa
+ssh-keys/id_ed25519
+ssh-keys/id_*
+ssh-keys/*.pem

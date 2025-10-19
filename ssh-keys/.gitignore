@@ -1,0 +1,6 @@
+# Ignore all files in this directory (for security)
+*
+
+# But allow the README file
+!README.md
+!.gitignore

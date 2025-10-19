@@ -79,6 +79,59 @@ get_repository_url() {
     fi
 }
 
+# Clone repository using docker run (so we don't need git in webhook container)
+clone_repository_with_docker() {
+    local repo_url=$1
+    local branch=$2
+    local target_dir=$3
+    
+    log "Cloning repository using Docker: $repo_url (branch: $branch)"
+    
+    # Remove existing directory
+    rm -rf "$target_dir"
+    
+    # Check if we have SSH keys available for private repositories
+    local ssh_volume_args=""
+    if [ -d "/root/.ssh-keys" ] && [ -f "/root/.ssh-keys/id_rsa" ]; then
+        log "Using SSH key for private repository access"
+        ssh_volume_args="-v /root/.ssh-keys:/root/.ssh:ro"
+    elif [ -d "/root/.ssh-keys" ] && [ -f "/root/.ssh-keys/id_ed25519" ]; then
+        log "Using Ed25519 SSH key for private repository access"
+        ssh_volume_args="-v /root/.ssh-keys:/root/.ssh:ro"
+    else
+        log "No SSH keys found, proceeding with public repository access or HTTPS with token"
+    fi
+    
+    # Use alpine/git image to clone the repository
+    if [ -n "$ssh_volume_args" ]; then
+        # With SSH keys
+        if docker run --rm \
+            -v "$(pwd):/workspace" \
+            -w /workspace \
+            $ssh_volume_args \
+            -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_dir"; then
+            log "✅ Repository cloned successfully with SSH"
+            return 0
+        else
+            log "❌ Failed to clone repository with SSH"
+            return 1
+        fi
+    else
+        # Without SSH keys (public repos or HTTPS with tokens)
+        if docker run --rm \
+            -v "$(pwd):/workspace" \
+            -w /workspace \
+            alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_dir"; then
+            log "✅ Repository cloned successfully"
+            return 0
+        else
+            log "❌ Failed to clone repository"
+            return 1
+        fi
+    fi
+}
+
 # Validate inputs
 if [ -z "$REPOSITORY_NAME" ]; then
     error_exit "Repository name is required"
@@ -217,17 +270,14 @@ if [ -f "$PROJECT_DIR/docker-compose.yml" ]; then
     # Clone/update app source code for build context
     log "Preparing app source code..."
     
-    # Remove existing source if it exists
-    rm -rf source
-    
     # Get repository URL dynamically
     repo_url=$(get_repository_url)
     
-    # Clone the app repository
+    # Clone the app repository using Docker
     log "Cloning app repository: $REPOSITORY_NAME (branch: $BRANCH_NAME)"
     log "Repository URL: $repo_url"
     
-    if ! git clone --branch "$BRANCH_NAME" --depth 1 "$repo_url" source; then
+    if ! clone_repository_with_docker "$repo_url" "$BRANCH_NAME" "source"; then
         error_exit "Failed to clone repository $repo_url (branch: $BRANCH_NAME)"
     fi
     

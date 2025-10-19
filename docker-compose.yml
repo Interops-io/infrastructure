@@ -57,6 +57,8 @@ services:
       - ./projects:/projects
       - webhook_logs:/var/log/webhook
       - deployment_metrics:/tmp
+      # SSH keys for private repository access
+      - ./ssh-keys:/root/.ssh-keys:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.webhook.rule=Host(`webhook.${INFRASTRUCTURE_DOMAIN:-localhost}`)"
