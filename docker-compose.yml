@@ -106,6 +106,8 @@ services:
     restart: unless-stopped
     depends_on:
       - init-permissions
+    environment:
+      - COMPOSE_BAKE=true  # Use Docker Buildx Bake for better build performance
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./projects:/projects

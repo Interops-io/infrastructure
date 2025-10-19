@@ -280,7 +280,36 @@ execute_hooks() {
         done
     fi
     
-    # Execute prioritized service hooks
+    # Execute general hook FIRST (sets up shared resources like storage directories)
+    local general_hook=""
+    local general_source=""
+    
+    # Check base project directory first (lower priority)
+    if [ -f "$BASE_PROJECT_DIR/${hook_pattern}.sh" ]; then
+        general_hook="$BASE_PROJECT_DIR/${hook_pattern}.sh"
+        general_source="base"
+    fi
+    
+    # Check environment directory (higher priority - overrides base)
+    if [ -f "$PROJECT_DIR/${hook_pattern}.sh" ]; then
+        general_hook="$PROJECT_DIR/${hook_pattern}.sh"
+        general_source="$ENVIRONMENT"
+    fi
+    
+    # Execute the prioritized general hook first
+    if [ -n "$general_hook" ]; then
+        local hook_dir=$(dirname "$general_hook")
+        log "Executing general $hook_stage hook: $(basename "$general_hook") (from $general_source)"
+        chmod +x "$general_hook" 2>/dev/null || log "Warning: Could not make $general_hook executable"
+        cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; return 1; }
+        if ./"$(basename "$general_hook")"; then
+            log "✅ General $hook_stage hook completed successfully"
+        else
+            log "⚠️ General $hook_stage hook failed (continuing anyway)"
+        fi
+    fi
+    
+    # Then execute service-specific hooks (can now use resources set up by general hook)
     for service_name in "${!service_hooks[@]}"; do
         local hook_file="${service_hooks[$service_name]}"
         local source="${hook_sources[$service_name]}"
@@ -314,35 +343,6 @@ execute_hooks() {
             fi
         fi
     done
-    
-    # Execute general hook with environment-specific prioritization
-    local general_hook=""
-    local general_source=""
-    
-    # Check base project directory first (lower priority)
-    if [ -f "$BASE_PROJECT_DIR/${hook_pattern}.sh" ]; then
-        general_hook="$BASE_PROJECT_DIR/${hook_pattern}.sh"
-        general_source="base"
-    fi
-    
-    # Check environment directory (higher priority - overrides base)
-    if [ -f "$PROJECT_DIR/${hook_pattern}.sh" ]; then
-        general_hook="$PROJECT_DIR/${hook_pattern}.sh"
-        general_source="$ENVIRONMENT"
-    fi
-    
-    # Execute the prioritized general hook
-    if [ -n "$general_hook" ]; then
-        local hook_dir=$(dirname "$general_hook")
-        log "Executing general $hook_stage hook: $(basename "$general_hook") (from $general_source)"
-        chmod +x "$general_hook" 2>/dev/null || log "Warning: Could not make $general_hook executable"
-        cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; return 1; }
-        if ./"$(basename "$general_hook")"; then
-            log "✅ General $hook_stage hook completed successfully"
-        else
-            log "⚠️ General $hook_stage hook failed (continuing anyway)"
-        fi
-    fi
 }
 
 # Standard deployment process
