@@ -92,7 +92,19 @@ clone_repository_with_docker() {
     log "Cloning repository using Docker: $repo_url (branch: $branch)"
     
     # Remove existing directory
-    rm -rf "$target_dir"
+    log "Attempting to remove existing directory: $target_dir"
+    log "Current working directory: $(pwd)"
+    if [ -d "$target_dir" ]; then
+        log "Directory $target_dir exists, removing..."
+        rm -rf "$target_dir"
+        if [ -d "$target_dir" ]; then
+            log "❌ Failed to remove $target_dir"
+        else
+            log "✅ Successfully removed $target_dir"
+        fi
+    else
+        log "Directory $target_dir does not exist"
+    fi
     
     # Check if we have SSH keys available for private repositories
     # We need to mount the SSH keys from the host path, not from the container path
