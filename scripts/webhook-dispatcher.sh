@@ -102,30 +102,36 @@ clone_repository_with_docker() {
     fi
     
     # Use alpine/git image to clone the repository
+    # Mount the parent directory so we can write to the target
+    local parent_dir=$(dirname "$(pwd)/$target_dir")
+    local target_name=$(basename "$target_dir")
+    
     if [ -n "$ssh_volume_args" ]; then
         # With SSH keys
         if docker run --rm \
-            -v "$(pwd):/workspace" \
+            -v "$parent_dir:/workspace" \
             -w /workspace \
             $ssh_volume_args \
             -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-            alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_dir"; then
+            alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_name"; then
             log "✅ Repository cloned successfully with SSH"
             return 0
         else
-            log "❌ Failed to clone repository with SSH"
+            log "❌ Failed to clone repository with SSH. Check SSH key permissions and repository access."
             return 1
         fi
     else
         # Without SSH keys (public repos or HTTPS with tokens)
         if docker run --rm \
-            -v "$(pwd):/workspace" \
+            -v "$parent_dir:/workspace" \
             -w /workspace \
-            alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_dir"; then
+            alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_name"; then
             log "✅ Repository cloned successfully"
             return 0
         else
-            log "❌ Failed to clone repository"
+            log "❌ Failed to clone repository. Check repository URL, branch name, and access permissions."
+            log "Repository URL: $repo_url"
+            log "Branch: $branch"
             return 1
         fi
     fi
@@ -172,22 +178,9 @@ fi
 log "Found base project directory: $BASE_PROJECT_DIR"
 log "Found environment directory: $PROJECT_DIR"
 
-# Setup database credentials if needed
-log "Checking database setup for $REPOSITORY_NAME ($ENVIRONMENT)"
-if [ -f "$PROJECT_DIR/.env.database" ]; then
-    # Check if .env.database has credentials
-    if grep -q "DB_PASSWORD=" "$PROJECT_DIR/.env.database" 2>/dev/null; then
-        log "Database credentials already configured"
-    else
-        log "Database configuration needed, ensuring database setup..."
-        # Run database setup script (relative path - both scripts in same directory)
-        ./setup-database.sh setup "$BASE_PROJECT_DIR" "$ENVIRONMENT" || log "Warning: Database setup failed or skipped"
-    fi
-fi
-
-# Load environment variables in order of precedence:
+# Load environment variables from project configuration
 # 1. Base project .env (lowest priority)
-# 2. Environment-specific .env (highest priority - may now include auto-generated DB credentials)
+# 2. Environment-specific .env (highest priority)
 
 if [ -f "$BASE_PROJECT_DIR/.env" ]; then
     log "Loading base project .env file"
@@ -229,7 +222,7 @@ execute_hooks() {
                 if [ -f "$hook_file" ]; then
                     local service_name=$(echo "$hook_file" | sed "s/.*${hook_pattern}\.\(.*\)\.sh/\1/")
                     log "Executing $hook_stage hook for service '$service_name': $(basename "$hook_file")"
-                    chmod +x "$hook_file"
+                    chmod +x "$hook_file" 2>/dev/null || log "Warning: Could not make $hook_file executable"
                     cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; continue; }
                     if ./"$(basename "$hook_file")"; then
                         log "✅ $hook_stage hook for '$service_name' completed successfully"
@@ -243,7 +236,7 @@ execute_hooks() {
             local general_hook="$hook_dir/${hook_pattern}.sh"
             if [ -f "$general_hook" ]; then
                 log "Executing general $hook_stage hook: $(basename "$general_hook")"
-                chmod +x "$general_hook"
+                chmod +x "$general_hook" 2>/dev/null || log "Warning: Could not make $general_hook executable"
                 cd "$hook_dir" || { log "ERROR: Failed to enter directory $hook_dir"; return 1; }
                 if ./"$(basename "$general_hook")"; then
                     log "✅ General $hook_stage hook completed successfully"
@@ -255,48 +248,49 @@ execute_hooks() {
     done
 }
 
-# Execute PRE-DEPLOY hooks
+# Standard deployment process
+log "=== MAIN DEPLOYMENT ==="
+
+# Check for docker-compose.yml first
+if [ ! -f "$PROJECT_DIR/docker-compose.yml" ]; then
+    error_exit "No docker-compose.yml found in project directory: $PROJECT_DIR"
+fi
+
+log "Found docker-compose.yml, starting deployment"
+cd "$PROJECT_DIR" || error_exit "Failed to enter project directory: $PROJECT_DIR"
+
+# Clone/update app source code for build context
+log "Preparing app source code..."
+
+# Get repository URL dynamically
+repo_url=$(get_repository_url)
+
+# Clone the app repository using Docker
+log "Cloning app repository: $REPOSITORY_NAME (branch: $BRANCH_NAME)"
+log "Repository URL: $repo_url"
+
+if ! clone_repository_with_docker "$repo_url" "$BRANCH_NAME" "source"; then
+    error_exit "Failed to clone repository $repo_url (branch: $BRANCH_NAME)"
+fi
+
+log "✅ App source prepared"
+
+# Execute PRE-DEPLOY hooks (after cloning, closer to actual deployment)
 log "=== PRE-DEPLOY HOOKS ==="
 execute_hooks "pre_deploy" "pre-deploy"
 
-# Standard deployment process
-log "=== MAIN DEPLOYMENT ==="
-if [ -f "$PROJECT_DIR/docker-compose.yml" ]; then
-    log "Found docker-compose.yml, starting deployment"
-    
-    cd "$PROJECT_DIR" || error_exit "Failed to enter project directory: $PROJECT_DIR"
-    
-    # Clone/update app source code for build context
-    log "Preparing app source code..."
-    
-    # Get repository URL dynamically
-    repo_url=$(get_repository_url)
-    
-    # Clone the app repository using Docker
-    log "Cloning app repository: $REPOSITORY_NAME (branch: $BRANCH_NAME)"
-    log "Repository URL: $repo_url"
-    
-    if ! clone_repository_with_docker "$repo_url" "$BRANCH_NAME" "source"; then
-        error_exit "Failed to clone repository $repo_url (branch: $BRANCH_NAME)"
-    fi
-    
-    log "✅ App source prepared"
-    
-    # Standard Docker Compose deployment
-    log "Starting Docker Compose deployment..."
-    docker compose pull
-    docker compose build --pull
-    docker compose up -d
-    
-    # Record successful deployment metrics for Grafana
-    echo "deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)" > "/tmp/deployment_metrics_$$_$(date +%s).prom"
-    # Also log to stdout for debugging
-    echo "METRICS: deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)"
-    
-    log "✅ Main deployment completed"
-else
-    error_exit "No docker-compose.yml found in project directory: $PROJECT_DIR"
-fi
+# Standard Docker Compose deployment
+log "Starting Docker Compose deployment..."
+docker compose pull
+docker compose build --pull
+docker compose up -d
+
+# Record successful deployment metrics for Grafana
+echo "deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)" > "/tmp/deployment_metrics_$$_$(date +%s).prom"
+# Also log to stdout for debugging
+echo "METRICS: deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)"
+
+log "✅ Main deployment completed"
 
 # Execute POST-DEPLOY hooks
 log "=== POST-DEPLOY HOOKS ==="

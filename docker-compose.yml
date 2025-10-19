@@ -53,9 +53,8 @@ services:
     volumes:
       - ./hooks.json:/etc/webhook/hooks.json:ro
       - ./scripts:/scripts:ro
-      - /var/run/docker.sock:/var/run/docker.sock
       - ./projects:/projects
-      - deployment_metrics:/tmp
+      - deployment_queue:/queue
       # SSH keys for private repository access
       - ./ssh-keys:/root/.ssh-keys:ro
     labels:
@@ -66,6 +65,27 @@ services:
       - "traefik.http.services.webhook.loadbalancer.server.port=9000"
     networks:
       - web  # Web access for webhook endpoint
+
+  # Deployment processor - handles actual deployments
+  deployer:
+    build:
+      context: .
+      dockerfile: Dockerfile.deployer
+    container_name: deployer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./projects:/projects
+      - deployment_queue:/queue
+      - deployment_metrics:/tmp
+      # SSH keys for private repository access
+      - ./ssh-keys:/root/.ssh-keys:ro
+      # Access to all scripts
+      - ./scripts:/scripts:ro
+    networks:
+      - web  # Internet access for pulling images and cloning repositories
+    labels:
+      - "traefik.enable=false"
 
   # MariaDB for application databases
   mariadb:
@@ -199,3 +219,4 @@ volumes:
   prometheus_data:
   grafana_data:
   deployment_metrics:
+  deployment_queue:

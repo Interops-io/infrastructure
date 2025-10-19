@@ -1,0 +1,37 @@
+# Deployer container - has all tools needed for deployment
+FROM alpine:latest
+
+# Install required tools
+RUN apk add --no-cache \
+    bash \
+    git \
+    docker-cli \
+    docker-cli-compose \
+    curl \
+    jq \
+    openssh-client \
+    openssl \
+    inotify-tools \
+    && rm -rf /var/cache/apk/*
+
+# Create working directory
+WORKDIR /app
+
+# Copy scripts
+COPY scripts/ /scripts/
+RUN chmod +x /scripts/*.sh
+
+# Create a helper script to ensure mounted scripts are executable
+RUN echo '#!/bin/sh\nchmod +x /scripts/*.sh 2>/dev/null || true\nexec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+# Create required directories
+RUN mkdir -p /queue /projects /root/.ssh
+
+# Set up git configuration (will be overridden by environment)
+RUN git config --global user.email "deployer@infrastructure" \
+    && git config --global user.name "Infrastructure Deployer" \
+    && git config --global init.defaultBranch main
+
+# Use entrypoint to fix script permissions, then run deployment processor
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/scripts/deployment-processor.sh"]

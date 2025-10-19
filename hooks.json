@@ -1,7 +1,7 @@
 [
   {
     "id": "deploy-github",
-    "execute-command": "/scripts/webhook-dispatcher.sh",
+    "execute-command": "/scripts/webhook-queue.sh",
     "command-working-directory": "/scripts",
     "response-message": "Deployment started for repository: {{.Repository.Name}}",
     "pass-arguments-to-command": [
@@ -105,7 +105,7 @@
   },
   {
     "id": "deploy-gitlab",
-    "execute-command": "/scripts/webhook-dispatcher.sh",
+    "execute-command": "/scripts/webhook-queue.sh",
     "command-working-directory": "/scripts",
     "response-message": "GitLab deployment started for repository: {{.Project.Name}}",
     "pass-arguments-to-command": [
