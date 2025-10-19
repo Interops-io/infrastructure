@@ -242,7 +242,7 @@ get_framework_or_services() {
             FRAMEWORK="custom"
             get_custom_services
             # For custom setup, default to Laravel-style volumes (can be customized later)
-            FRAMEWORK_VOLUMES="../../../volumes/projects/\${PROJECT_NAME}/\${env}/storage:/var/www/html/storage"
+            FRAMEWORK_VOLUMES="./storage:/var/www/html/storage"
             break
         elif [[ -n "${menu_mapping[$framework_choice]}" ]]; then
             FRAMEWORK="${menu_mapping[$framework_choice]}"
@@ -382,7 +382,7 @@ version: '3.8'
 services:
   app:
     build:
-      context: ../../../src/${PROJECT_NAME}  # Your project source code directory
+      context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
     container_name: ${PROJECT_NAME}-app-${suffix}
     restart: unless-stopped
@@ -449,7 +449,7 @@ EOF
         cat >> "$compose_file" << EOF
   queue-worker:
     build:
-      context: ../../../src/${PROJECT_NAME}  # Your project source code directory
+      context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
     container_name: ${PROJECT_NAME}-queue-${suffix}
     restart: unless-stopped
@@ -501,7 +501,7 @@ EOF
         cat >> "$compose_file" << EOF
   scheduler:
     build:
-      context: ../../../src/${PROJECT_NAME}  # Use same build as main app
+      context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
     container_name: ${PROJECT_NAME}-scheduler-${suffix}
     restart: unless-stopped
@@ -512,7 +512,7 @@ EOF
              cron -f"
     working_dir: /var/www/html
     volumes:
-      - ../../../src/${PROJECT_NAME}:/var/www/html
+      - ./source:/var/www/html
 $(if [[ -n "${FRAMEWORK_VOLUMES:-}" ]]; then
 IFS=',' read -ra volume_array <<< "$FRAMEWORK_VOLUMES"
 for volume in "${volume_array[@]}"; do
@@ -759,20 +759,22 @@ create_project_structure() {
     fi
     
     # Create volume directories with proper permissions
-    log_info "Creating volume directories..."
+    log_info "Creating local storage directories...")
     for env in "${ENVIRONMENTS[@]}"; do
-        local volume_dir="$INFRASTRUCTURE_DIR/volumes/projects/$PROJECT_NAME/$env"
-        if ! mkdir -p "$volume_dir/storage"; then
-            log_error "Failed to create volume directory: $volume_dir/storage"
+        local env_dir="$PROJECTS_DIR/$PROJECT_NAME/$env"
+        
+        # Create storage directory in the environment directory
+        if ! mkdir -p "$env_dir/storage"; then
+            log_error "Failed to create storage directory: $env_dir/storage"
             exit 1
         fi
         
         # Set proper permissions for Laravel storage directories
-        chmod 755 "$volume_dir/storage"
+        chmod 755 "$env_dir/storage"
         
         # Ensure www-data can write (if running as different user)
         if [[ $(id -u) -eq 0 ]]; then
-            chown -R 33:33 "$volume_dir" 2>/dev/null || true  # www-data UID/GID
+            chown -R 33:33 "$env_dir/storage" 2>/dev/null || true  # www-data UID/GID
         fi
     done
     

@@ -355,10 +355,6 @@ else
     log "❌ docker-compose.yml not found in $(pwd)"
 fi
 
-# Test variable substitution
-log "Testing Docker Compose variable substitution:"
-docker compose config --quiet || log "Docker Compose config validation failed"
-
 docker compose pull
 docker compose build --pull
 docker compose up -d --force-recreate
