@@ -123,7 +123,7 @@ clone_repository_with_docker() {
         
         # Debug: Show what files are actually available in the alpine/git container
         log "Debugging SSH key availability in alpine/git container..."
-        docker run --rm $ssh_volume_args alpine/git sh -c "echo 'Contents of /root/.ssh:'; ls -la /root/.ssh/ 2>/dev/null || echo 'Directory /root/.ssh does not exist'; echo 'Contents of /root:'; ls -la /root/ 2>/dev/null || echo 'Cannot list /root'"
+        docker run --rm $ssh_volume_args --entrypoint sh alpine/git -c "echo 'Contents of /root/.ssh:'; ls -la /root/.ssh/ 2>/dev/null || echo 'Directory /root/.ssh does not exist'; echo 'Contents of /root:'; ls -la /root/ 2>/dev/null || echo 'Cannot list /root'"
         
         if docker run --rm \
             -v "$parent_dir:/workspace" \
