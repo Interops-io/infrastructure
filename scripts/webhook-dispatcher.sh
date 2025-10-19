@@ -124,10 +124,7 @@ clone_repository_with_docker() {
             ssh_key_path="/root/.ssh-keys/id_rsa"
         fi
         
-        # Debug: Show what files are actually available in the alpine/git container
-        log "Debugging SSH key availability in alpine/git container..."
-        log "Volume mount args: $ssh_volume_args"
-        docker run --rm $ssh_volume_args --entrypoint sh alpine/git -c "echo 'Contents of /root/.ssh:'; ls -la /root/.ssh/ 2>/dev/null || echo 'Directory /root/.ssh does not exist'; echo 'Contents of /root:'; ls -la /root/ 2>/dev/null || echo 'Cannot list /root'"
+
         
         if docker run --rm \
             -v "$parent_dir:/workspace" \
@@ -302,6 +299,15 @@ execute_hooks "pre_deploy" "pre-deploy"
 
 # Standard Docker Compose deployment
 log "Starting Docker Compose deployment..."
+log "Current directory: $(pwd)"
+log "Files in current directory:"
+ls -la
+log "Looking for docker-compose.yml..."
+if [ -f "docker-compose.yml" ]; then
+    log "✅ docker-compose.yml found"
+else
+    log "❌ docker-compose.yml not found in $(pwd)"
+fi
 docker compose pull
 docker compose build --pull
 docker compose up -d --force-recreate
