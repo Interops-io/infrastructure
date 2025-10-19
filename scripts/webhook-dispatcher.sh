@@ -294,16 +294,18 @@ execute_hooks() {
         local script_name=$(basename "$hook_file")
         local container_script_path="/tmp/$script_name"
         
-        if docker compose cp "$script_name" "$service_name:$container_script_path" 2>/dev/null; then
-            log "Running $script_name inside $service_name container"
-            if docker compose exec -T "$service_name" chmod +x "$container_script_path" && \
-               docker compose exec -T "$service_name" bash -c "cd /var/www/html 2>/dev/null || cd /; $container_script_path"; then
+        # Check if the service container exists and is running using direct docker command
+        local container_name="${PROJECT_NAME}-${service_name}-${ENVIRONMENT}"
+        if docker ps --format "{{.Names}}" | grep -q "^${container_name}$" 2>/dev/null; then
+            log "Running $script_name inside $service_name service (container: $container_name)"
+            # Copy script content via stdin instead of file copy (more reliable)
+            if docker exec -i "$container_name" bash -c "cd /var/www/html 2>/dev/null || cd /; cat > $container_script_path && chmod +x $container_script_path && $container_script_path" < "$hook_file"; then
                 log "✅ $hook_stage hook for '$service_name' completed successfully"
             else
                 log "⚠️ $hook_stage hook for '$service_name' failed (continuing anyway)"
             fi
         else
-            log "⚠️ Could not copy $script_name to $service_name container, running on deployer instead"
+            log "⚠️ Service '$service_name' container '$container_name' not found or not running, running hook on deployer instead"
             # Fallback to running on deployer container
             if ./"$script_name"; then
                 log "✅ $hook_stage hook for '$service_name' completed successfully (fallback)"
