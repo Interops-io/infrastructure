@@ -47,7 +47,7 @@ services:
     image: almir/webhook:latest
     container_name: webhook
     restart: unless-stopped
-    command: ["-verbose", "-hooks=/etc/webhook/hooks.json", "-hotreload"]
+    entrypoint: ["/scripts/init-webhook.sh"]
     environment:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET:-default-secret-change-me}
     volumes:
@@ -59,17 +59,6 @@ services:
       - deployment_metrics:/tmp
       # SSH keys for private repository access
       - ./ssh-keys:/root/.ssh-keys:ro
-    # Fix log directory permissions on startup
-    entrypoint: >
-      sh -c "
-        # Ensure log directory is writable
-        mkdir -p /var/log/webhook &&
-        chmod 755 /var/log/webhook &&
-        touch /var/log/webhook/dispatcher.log &&
-        chmod 664 /var/log/webhook/dispatcher.log &&
-        # Start webhook service
-        exec /usr/local/bin/webhook -verbose -hooks=/etc/webhook/hooks.json -hotreload
-      "
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.webhook.rule=Host(`webhook.${INFRASTRUCTURE_DOMAIN:-localhost}`)"
