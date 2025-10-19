@@ -415,7 +415,9 @@ fi
 # Set commit hash for image tagging (use short 8-character hash)
 export COMMIT_HASH="${COMMIT_SHA:0:8}"
 
-docker compose pull
+# Pull external images only (skip services with build sections)
+docker compose pull --ignore-pull-failures 2>/dev/null || true
+# Build our custom services
 docker compose build --pull
 COMMIT_HASH="${COMMIT_SHA:0:8}" docker compose up -d --force-recreate
 
