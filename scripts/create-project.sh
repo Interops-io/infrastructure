@@ -759,7 +759,7 @@ create_project_structure() {
     fi
     
     # Create volume directories with proper permissions
-    log_info "Creating local storage directories...")
+    log_info "Creating local storage directories..."
     for env in "${ENVIRONMENTS[@]}"; do
         local env_dir="$PROJECTS_DIR/$PROJECT_NAME/$env"
         
