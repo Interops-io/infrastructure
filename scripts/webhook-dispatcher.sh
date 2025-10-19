@@ -140,6 +140,7 @@ clone_repository_with_docker() {
             alpine/git -c "if [ -d '$target_name' ]; then echo 'Removing existing $target_name directory in container'; rm -rf '$target_name'; else echo 'No existing $target_name directory in container'; fi"
         
         if docker run --rm \
+            --volumes-from "$container_hostname" \
             -w "$(pwd)" \
             -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $ssh_key_path" \
             alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_name"; then
