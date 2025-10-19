@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install npm dependencies
-RUN npm ci --only=production
+# Install npm dependencies (including dev dependencies for build tools)
+RUN npm ci
 
 # Copy frontend source files
 COPY resources/ resources/
