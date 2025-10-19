@@ -107,15 +107,16 @@ clone_repository_with_docker() {
     fi
     
     # Use alpine/git image to clone the repository
-    # Mount the parent directory so we can write to the target
-    local parent_dir=$(dirname "$(pwd)/$target_dir")
+    # Use --volumes-from to inherit the same volume mounts as this container
+    # This way alpine/git will see the same /projects mount as the deployer container
     local target_name=$(basename "$target_dir")
+    local container_hostname=$(hostname)
     
     log "Debug paths:"
     log "  Current dir: $(pwd)"
     log "  Target dir: $target_dir"
-    log "  Parent dir: $parent_dir" 
     log "  Target name: $target_name"
+    log "  Container hostname: $container_hostname"
     log "  Full target path: $(pwd)/$target_dir"
     
     if [ -n "$ssh_volume_args" ]; then
@@ -133,16 +134,13 @@ clone_repository_with_docker() {
         # Check and remove directory inside the alpine/git container before cloning
         log "Checking for existing directory in alpine/git workspace..."
         docker run --rm \
-            -v "$parent_dir:/workspace" \
-            -w /workspace \
-            $ssh_volume_args \
+            --volumes-from "$container_hostname" \
+            -w "$(pwd)" \
             --entrypoint sh \
             alpine/git -c "if [ -d '$target_name' ]; then echo 'Removing existing $target_name directory in container'; rm -rf '$target_name'; else echo 'No existing $target_name directory in container'; fi"
         
         if docker run --rm \
-            -v "$parent_dir:/workspace" \
-            -w /workspace \
-            $ssh_volume_args \
+            -w "$(pwd)" \
             -e GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $ssh_key_path" \
             alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_name"; then
             log "✅ Repository cloned successfully with SSH key: $ssh_key_path"
@@ -154,8 +152,8 @@ clone_repository_with_docker() {
     else
         # Without SSH keys (public repos or HTTPS with tokens)
         if docker run --rm \
-            -v "$parent_dir:/workspace" \
-            -w /workspace \
+            --volumes-from "$container_hostname" \
+            -w "$(pwd)" \
             alpine/git clone --branch "$branch" --depth 1 "$repo_url" "$target_name"; then
             log "✅ Repository cloned successfully"
             return 0
@@ -309,6 +307,9 @@ log "✅ App source prepared"
 # Execute PRE-DEPLOY hooks (after cloning, closer to actual deployment)
 log "=== PRE-DEPLOY HOOKS ==="
 execute_hooks "pre_deploy" "pre-deploy"
+
+# Ensure we're back in the project directory after hooks
+cd "$PROJECT_DIR" || error_exit "Failed to return to project directory: $PROJECT_DIR"
 
 # Standard Docker Compose deployment
 log "Starting Docker Compose deployment..."
