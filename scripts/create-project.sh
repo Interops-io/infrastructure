@@ -868,8 +868,15 @@ EOF
 # Laravel-specific tasks
 echo "Setting up Laravel permissions and optimization..."
 
-# Set proper ownership and permissions for storage and cache directories
-chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
+# Create Laravel storage directories if they don't exist
+mkdir -p /var/www/html/storage/logs
+mkdir -p /var/www/html/storage/framework/cache
+mkdir -p /var/www/html/storage/framework/sessions
+mkdir -p /var/www/html/storage/framework/views
+mkdir -p /var/www/html/storage/app/public
+mkdir -p /var/www/html/bootstrap/cache
+
+# Set proper permissions for storage and cache directories (run as current user)
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache 2>/dev/null || true
 
 echo "Running Laravel optimization commands..."
