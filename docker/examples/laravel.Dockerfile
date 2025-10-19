@@ -42,5 +42,8 @@ COPY --from=php-deps /var/www/html/vendor/ /var/www/html/vendor/
 # Copy built frontend assets from frontend stage
 COPY --from=frontend-builder /app/public/build/ /var/www/html/public/build/
 
-# Run basic composer optimization (cache commands moved to post-deploy)
-RUN composer dump-autoload --optimize --no-dev --no-scripts
+# Create Laravel cache directories with proper permissions
+RUN mkdir -p /var/www/html/bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html/bootstrap/cache \
+    && chmod -R 755 /var/www/html/bootstrap/cache \
+    && composer dump-autoload --optimize --no-dev --no-scripts

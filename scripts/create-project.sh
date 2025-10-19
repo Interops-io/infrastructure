@@ -870,13 +870,12 @@ EOF
 # Laravel: Create storage directory structure (runs as root on deployer)
 echo "Setting up Laravel storage directories with proper permissions..."
 mkdir -p storage/logs storage/framework/cache storage/framework/sessions storage/framework/views storage/app/public
-mkdir -p bootstrap/cache
 
 # Set ownership to www-data (UID:GID 33:33) for web server compatibility
-chown -R 33:33 storage bootstrap/cache 2>/dev/null || true
+chown -R 33:33 storage 2>/dev/null || true
 # Set permissions: 775 for directories, 664 for files
-find storage bootstrap/cache -type d -exec chmod 775 {} \; 2>/dev/null || true
-find storage bootstrap/cache -type f -exec chmod 664 {} \; 2>/dev/null || true
+find storage -type d -exec chmod 775 {} \; 2>/dev/null || true
+find storage -type f -exec chmod 664 {} \; 2>/dev/null || true
 
 echo "✅ Laravel storage setup completed"
 
