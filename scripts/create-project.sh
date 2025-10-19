@@ -772,26 +772,6 @@ create_project_structure() {
         exit 1
     fi
     
-    # Create volume directories with proper permissions
-    log_info "Creating local storage directories..."
-    for env in "${ENVIRONMENTS[@]}"; do
-        local env_dir="$PROJECTS_DIR/$PROJECT_NAME/$env"
-        
-        # Create storage directory in the environment directory
-        if ! mkdir -p "$env_dir/storage"; then
-            log_error "Failed to create storage directory: $env_dir/storage"
-            exit 1
-        fi
-        
-        # Set proper permissions for Laravel storage directories
-        chmod 755 "$env_dir/storage"
-        
-        # Ensure www-data can write (if running as different user)
-        if [[ $(id -u) -eq 0 ]]; then
-            chown -R 33:33 "$env_dir/storage" 2>/dev/null || true  # www-data UID/GID
-        fi
-    done
-    
     # Create environment directories
     for env in "${ENVIRONMENTS[@]}"; do
         local env_dir="$PROJECTS_DIR/$PROJECT_NAME/$env"
