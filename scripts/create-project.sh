@@ -356,6 +356,13 @@ generate_volumes_section() {
             # Safely expand PROJECT_NAME and env variables only
             local expanded_volume="${volume//\$\{PROJECT_NAME\}/$PROJECT_NAME}"
             expanded_volume="${expanded_volume//\$\{env\}/$env}"
+            
+            # Convert relative paths to absolute paths for deployer container context
+            # The deployer container has /projects mounted, so ./storage becomes /projects/PROJECT/ENV/storage
+            if [[ "$expanded_volume" == ./* ]]; then
+                expanded_volume="/projects/$PROJECT_NAME/$env/${expanded_volume#./}"
+            fi
+            
             echo "      - $expanded_volume"
         done
     fi
