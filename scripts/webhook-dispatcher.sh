@@ -95,13 +95,16 @@ clone_repository_with_docker() {
     rm -rf "$target_dir"
     
     # Check if we have SSH keys available for private repositories
+    # We need to mount the SSH keys from the host path, not from the container path
     local ssh_volume_args=""
     if [ -d "/root/.ssh-keys" ] && [ -f "/root/.ssh-keys/id_rsa" ]; then
         log "Using SSH key for private repository access"
-        ssh_volume_args="-v /root/.ssh-keys:/root/.ssh:ro"
+        # Mount the same volume that's mounted to this container
+        ssh_volume_args="--volumes-from $(hostname)"
     elif [ -d "/root/.ssh-keys" ] && [ -f "/root/.ssh-keys/id_ed25519" ]; then
         log "Using Ed25519 SSH key for private repository access"
-        ssh_volume_args="-v /root/.ssh-keys:/root/.ssh:ro"
+        # Mount the same volume that's mounted to this container
+        ssh_volume_args="--volumes-from $(hostname)"
     else
         log "No SSH keys found, proceeding with public repository access or HTTPS with token"
     fi
@@ -113,16 +116,17 @@ clone_repository_with_docker() {
     
     if [ -n "$ssh_volume_args" ]; then
         # With SSH keys - explicitly specify which key to use
-        # Note: Keys are checked at /root/.ssh-keys/ but mounted to alpine/git at /root/.ssh/
+        # Note: Using --volumes-from so keys stay at /root/.ssh-keys/ in alpine/git container too
         local ssh_key_path=""
         if [ -f "/root/.ssh-keys/id_ed25519" ]; then
-            ssh_key_path="/root/.ssh/id_ed25519"
+            ssh_key_path="/root/.ssh-keys/id_ed25519"
         elif [ -f "/root/.ssh-keys/id_rsa" ]; then
-            ssh_key_path="/root/.ssh/id_rsa"
+            ssh_key_path="/root/.ssh-keys/id_rsa"
         fi
         
         # Debug: Show what files are actually available in the alpine/git container
         log "Debugging SSH key availability in alpine/git container..."
+        log "Volume mount args: $ssh_volume_args"
         docker run --rm $ssh_volume_args --entrypoint sh alpine/git -c "echo 'Contents of /root/.ssh:'; ls -la /root/.ssh/ 2>/dev/null || echo 'Directory /root/.ssh does not exist'; echo 'Contents of /root:'; ls -la /root/ 2>/dev/null || echo 'Cannot list /root'"
         
         if docker run --rm \
