@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 
-# Webhook Dispatcher (POSIX sh compatible)
+# Webhook Dispatcher (Bash)
 # Finds and runs the correct deploy script for each project
 
 set -e
