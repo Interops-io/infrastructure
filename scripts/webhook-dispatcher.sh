@@ -322,9 +322,30 @@ execute_hooks "pre_deploy" "pre-deploy"
 # Ensure we're back in the project directory after hooks
 cd "$PROJECT_DIR" || error_exit "Failed to return to project directory: $PROJECT_DIR"
 
+# Export Docker Compose variables right before deployment
+PROJECT_NAME="${PROJECT_NAME:-$REPOSITORY_NAME}"
+suffix="${suffix:-$ENVIRONMENT}"
+export PROJECT_NAME
+export suffix
+
+log "Final environment variables for Docker Compose:"
+log "  PROJECT_NAME=$PROJECT_NAME"
+log "  suffix=$suffix"
+
+# Verify the variables are actually exported
+env | grep -E "^(PROJECT_NAME|suffix)=" || log "Warning: PROJECT_NAME or suffix not found in environment"
+
 # Standard Docker Compose deployment
 log "Starting Docker Compose deployment..."
 log "Current directory: $(pwd)"
+
+# Debug environment variables right before Docker Compose
+log "Environment check before Docker Compose:"
+log "  PROJECT_NAME=${PROJECT_NAME:-UNSET}"
+log "  suffix=${suffix:-UNSET}"
+log "  REPOSITORY_NAME=${REPOSITORY_NAME:-UNSET}"
+log "  ENVIRONMENT=${ENVIRONMENT:-UNSET}"
+
 log "Files in current directory:"
 ls -la
 log "Looking for docker-compose.yml..."
@@ -333,6 +354,11 @@ if [ -f "docker-compose.yml" ]; then
 else
     log "❌ docker-compose.yml not found in $(pwd)"
 fi
+
+# Test variable substitution
+log "Testing Docker Compose variable substitution:"
+docker compose config --quiet || log "Docker Compose config validation failed"
+
 docker compose pull
 docker compose build --pull
 docker compose up -d --force-recreate
