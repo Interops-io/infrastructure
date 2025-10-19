@@ -74,16 +74,12 @@ get_repository_url() {
     
     # Priority order: SSH URL when keys available > HTTPS URL > fallback construction
     if [ "$has_ssh_keys" = true ] && [ -n "$REPOSITORY_SSH_URL" ]; then
-        log "Using SSH URL for private repository (SSH keys available)"
+        log "Using SSH URL for private repository (SSH keys available)" >&2
         echo "$REPOSITORY_SSH_URL"
     elif [ -n "$REPOSITORY_CLONE_URL" ]; then
         echo "$REPOSITORY_CLONE_URL"
     elif [ -n "$REPOSITORY_SSH_URL" ]; then
         echo "$REPOSITORY_SSH_URL"
-    else
-        # Fallback to GitHub (for backward compatibility)
-        log "Warning: No repository URL in webhook payload, falling back to GitHub"
-        echo "https://github.com/Interops-io/${REPOSITORY_NAME}.git"
     fi
 }
 
@@ -292,7 +288,7 @@ execute_hooks "pre_deploy" "pre-deploy"
 log "Starting Docker Compose deployment..."
 docker compose pull
 docker compose build --pull
-docker compose up -d
+docker compose up -d --force-recreate
 
 # Record successful deployment metrics for Grafana
 echo "deployment_completed{project=\"$REPOSITORY_NAME\",environment=\"$ENVIRONMENT\",commit=\"$COMMIT_SHA\",branch=\"$BRANCH_NAME\",pusher=\"$PUSHER_NAME\"} $(date +%s)" > "/tmp/deployment_metrics_$$_$(date +%s).prom"
