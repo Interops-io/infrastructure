@@ -135,7 +135,8 @@ services:
       - mariadb_data:/var/lib/mysql
       - ./volumes/mariadb/init:/docker-entrypoint-initdb.d:ro
     networks:
-      - database  # Database access only - no web
+      - database
+      - host_access
     labels:
       - "traefik.enable=false"
 
@@ -240,6 +241,8 @@ networks:
     name: database_access
     external: false
     internal: true  # No external internet access
+  host_access:
+    driver: bridge
     
   # Monitoring network (Prometheus ↔ Grafana)
   monitoring:
