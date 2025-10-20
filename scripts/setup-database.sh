@@ -157,8 +157,8 @@ create_mariadb_user() {
     log_info "Creating MariaDB database and user for $app_name ($environment) in container: $container_name"
     
     if [[ "$db_type" == "shared" ]]; then
-        # Shared database - create isolated user with limited privileges using secure init script
-        create_database_init_script "$db_name" "$username" "$password"
+        # Always use mariadb-shared for shared DB
+        create_database_init_script "$db_name" "$username" "$password" "mariadb-shared"
     else
         # Project-specific database - database and user already configured via docker-compose environment
         # Just verify the database is accessible
@@ -197,12 +197,18 @@ check_mariadb_exists() {
         docker exec "$container_name" mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW DATABASES;" > /dev/null 2>&1
         return $?
     else
+        # Always use mariadb-shared for shared DB
+        local shared_container="mariadb-shared"
         # Check if database exists
-        local db_exists=$(docker exec "$container_name" mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW DATABASES LIKE '${db_name}';" 2>/dev/null | grep -c "${db_name}" || echo "0")
-        
+        local db_exists=$(docker exec "$shared_container" mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW DATABASES LIKE '${db_name}';" 2>/dev/null | grep -c "${db_name}" || echo "0")
+        db_exists=${db_exists:-0}
+        db_exists=$(echo "$db_exists" | grep -E '^[0-9]+$' || echo "0")
+
         # Check if user exists
-        local user_exists=$(docker exec "$container_name" mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT User FROM mysql.user WHERE User='${username}';" 2>/dev/null | grep -c "${username}" || echo "0")
-        
+        local user_exists=$(docker exec "$shared_container" mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT User FROM mysql.user WHERE User='${username}';" 2>/dev/null | grep -c "${username}" || echo "0")
+        user_exists=${user_exists:-0}
+        user_exists=$(echo "$user_exists" | grep -E '^[0-9]+$' || echo "0")
+
         if [ "$db_exists" -gt 0 ] && [ "$user_exists" -gt 0 ]; then
             return 0  # Both exist
         else
