@@ -234,7 +234,7 @@ networks:
   # Public web traffic (Traefik ↔ Internet)
   web:
     name: traefik_web
-    external: false
+    external: true
 
   # Database access (Projects ↔ Database)  
   database:
