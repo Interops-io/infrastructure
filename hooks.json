@@ -52,52 +52,14 @@
       }
     ],
     "trigger-rule": {
-      "and": [
-        {
-          "match": {
-            "type": "payload-hmac-sha256",
-            "secret": "{{ getenv "WEBHOOK_SECRET" | js }}",
-            "parameter": {
-              "source": "header",
-              "name": "X-Hub-Signature-256"
-            }
-          }
-        },
-        {
-          "or": [
-            {
-              "match": {
-                "type": "value",
-                "value": "refs/heads/main",
-                "parameter": {
-                  "source": "payload",
-                  "name": "ref"
-                }
-              }
-            },
-            {
-              "match": {
-                "type": "value",
-                "value": "refs/heads/staging",
-                "parameter": {
-                  "source": "payload",
-                  "name": "ref"
-                }
-              }
-            },
-            {
-              "match": {
-                "type": "value",
-                "value": "refs/heads/develop",
-                "parameter": {
-                  "source": "payload",
-                  "name": "ref"
-                }
-              }
-            }
-          ]
+      "match": {
+        "type": "payload-hmac-sha256",
+        "secret": "{{ getenv "WEBHOOK_SECRET" | js }}",
+        "parameter": {
+          "source": "header",
+          "name": "X-Hub-Signature-256"
         }
-      ]
+      }
     }
   },
   {
