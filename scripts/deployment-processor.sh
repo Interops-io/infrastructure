@@ -137,7 +137,7 @@ watch_queue() {
                 fi
                 file_status=$(jq -r 'try .status // ""' "$filepath" 2>/dev/null)
                 case "$file_status" in
-                    ""|null)
+                    ""|null|queued)
                         log "📥 New deployment request detected (no status): $base_part"
                         process_deployment "$filepath"
                         ;;
