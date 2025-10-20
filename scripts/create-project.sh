@@ -423,8 +423,8 @@ $(generate_volumes_section)
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.rule=Host(\`${APP_DOMAIN:-${PROJECT_NAME}.localhost}\`)"
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.tls=true"
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.${PROJECT_NAME}-${suffix}.loadbalancer.server.port=80"
-      - "traefik.http.routers.${PROJECT_NAME}-${suffix}.middlewares=secure-headers"
+      - "traefik.http.services.${PROJECT_NAME}-${suffix}.loadbalancer.server.port=8080"
+    - "traefik.http.routers.${PROJECT_NAME}-${suffix}.middlewares=secure-headers@file"
     networks:
       - web
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
@@ -461,7 +461,11 @@ EOF
     image: ${PROJECT_NAME}-queue-${suffix}:\${COMMIT_HASH:-latest}
     container_name: ${PROJECT_NAME}-queue-${suffix}
     restart: unless-stopped
-    command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+    command: ["php", "/var/www/html/artisan", "queue:work", "--tries=3"]
+    stop_signal: SIGTERM # Set this for graceful shutdown if you're using fpm-apache or fpm-nginx
+    healthcheck:
+      test: ["CMD", "healthcheck-queue"]
+      start_period: 10s
     env_file:
       - ../.env
       - .env
@@ -515,14 +519,12 @@ EOF
     image: ${PROJECT_NAME}-scheduler-${suffix}:\${COMMIT_HASH:-latest}
     container_name: ${PROJECT_NAME}-scheduler-${suffix}
     restart: unless-stopped
-    command: >
-      sh -c "echo '* * * * * cd /var/www/html && php artisan schedule:run >> /proc/1/fd/1 2>/proc/1/fd/2' > /etc/cron.d/laravel-scheduler &&
-             chmod 0644 /etc/cron.d/laravel-scheduler &&
-             crontab /etc/cron.d/laravel-scheduler &&
-             cron -f"
-    working_dir: /var/www/html
+    command: ["php", "/var/www/html/artisan", "schedule:work"]
+    stop_signal: SIGTERM
+    healthcheck:
+      test: ["CMD", "healthcheck-schedule"]
+      start_period: 10s
     volumes:
-      - ./source:/var/www/html
 $(if [[ -n "${FRAMEWORK_VOLUMES:-}" ]]; then
 IFS=',' read -ra volume_array <<< "$FRAMEWORK_VOLUMES"
 for volume in "${volume_array[@]}"; do
