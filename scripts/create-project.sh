@@ -748,7 +748,7 @@ DB_HOST=mariadb-shared
 DB_PORT=3306
 DB_DATABASE=${PROJECT_NAME}_${env}
 DB_USERNAME=${PROJECT_NAME}_${env}
-DB_PASSWORD=$(openssl rand -base64 24)
+DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 EOF
     elif [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
         cat > "$env_dir/.env.database" << EOF
@@ -760,7 +760,7 @@ DB_HOST=mariadb
 DB_PORT=3306
 DB_DATABASE=${PROJECT_NAME}_${env}
 DB_USERNAME=${PROJECT_NAME}_${env}
-DB_PASSWORD=$(openssl rand -base64 24)
+DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
 EOF
     fi
 }
