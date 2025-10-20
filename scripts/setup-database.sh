@@ -163,10 +163,12 @@ create_mariadb_user() {
         create_database_init_script "$db_name" "$username" "$password" "mariadb-shared"
         # Always update .env.database with the password used
         if [[ -f "$env_dir/.env.database" ]]; then
+            # Escape password for sed (replace / with \/)
+            local password_escaped=$(printf '%s' "$password" | sed 's/[\/&]/\\&/g')
             if grep -q "^DB_PASSWORD=" "$env_dir/.env.database"; then
-                sed -i.bak "s/^DB_PASSWORD=.*/DB_PASSWORD=$password/" "$env_dir/.env.database"
+                sed -i.bak "s/^DB_PASSWORD=.*/DB_PASSWORD=$password_escaped/" "$env_dir/.env.database"
             else
-                echo "DB_PASSWORD=$password" >> "$env_dir/.env.database"
+                echo "DB_PASSWORD=$password_escaped" >> "$env_dir/.env.database"
             fi
         fi
     else
@@ -218,6 +220,10 @@ check_mariadb_exists() {
         local user_exists=$(docker exec "$shared_container" mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SELECT User FROM mysql.user WHERE User='${username}';" 2>/dev/null | grep -c "${username}" || echo "0")
         user_exists=${user_exists:-0}
         user_exists=$(echo "$user_exists" | grep -E '^[0-9]+$' || echo "0")
+
+        # Ensure both are valid integers for comparison
+        if [[ ! "$db_exists" =~ ^[0-9]+$ ]]; then db_exists=0; fi
+        if [[ ! "$user_exists" =~ ^[0-9]+$ ]]; then user_exists=0; fi
 
         if [ "$db_exists" -gt 0 ] && [ "$user_exists" -gt 0 ]; then
             return 0  # Both exist
