@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# infra-control: Start or stop all infrastructure and projects
+# Usage: ./infra-control up|down [--dry-run] [additional docker compose args]
+
+set -euo pipefail
+
+ACTION="${1:-}"
+shift || true
+
+if [[ "$ACTION" != "up" && "$ACTION" != "down" ]]; then
+  echo "Usage: $0 up|down [--dry-run] [additional docker compose args]"
+  exit 1
+fi
+
+# Always assume the modern "docker compose" command (per user request)
+COMPOSE="docker compose"
+
+DRY_RUN=false
+ARGS=()
+for arg in "$@"; do
+  if [[ "$arg" == "--dry-run" ]]; then
+    DRY_RUN=true
+  else
+    ARGS+=("$arg")
+  fi
+done
+
+run_compose() {
+  local dir="$1"
+  local compose_file="$2"
+  if [[ -f "$compose_file" ]]; then
+    echo "[$ACTION] $compose_file in $dir"
+    if $DRY_RUN; then
+      if [[ "$ACTION" == "up" ]]; then
+        # show the exact command that would run for `up` (with -d)
+        echo "$COMPOSE -f $compose_file $ACTION -d ${ARGS[*]}"
+      else
+        # for `down`, do not include -d
+        echo "$COMPOSE -f $compose_file $ACTION ${ARGS[*]}"
+      fi
+    else
+      (cd "$dir" && if [[ "$ACTION" == "up" ]]; then
+          $COMPOSE -f "$compose_file" "$ACTION" -d "${ARGS[@]}"
+        else
+          $COMPOSE -f "$compose_file" "$ACTION" "${ARGS[@]}"
+        fi)
+    fi
+  fi
+}
+
+# For 'up', infra first, then projects. For 'down', projects first, then infra.
+INFRA_COMPOSE="$(cd "$(dirname "$0")/.." && pwd)/docker-compose.yml"
+PROJECTS_ROOT="$(cd "$(dirname "$0")/.." && pwd)/projects"
+
+if [[ "$ACTION" == "up" ]]; then
+  run_compose "$(dirname "$INFRA_COMPOSE")" "$INFRA_COMPOSE"
+fi
+
+# iterate project compose files (depth 2: projects/<name>/<env>/docker-compose.yml)
+find "$PROJECTS_ROOT" -mindepth 2 -maxdepth 3 -type f -name 'docker-compose.yml' | sort | while read -r compose_file; do
+  project_dir="$(dirname "$compose_file")"
+  run_compose "$project_dir" "$compose_file"
+done
+
+if [[ "$ACTION" == "down" ]]; then
+  run_compose "$(dirname "$INFRA_COMPOSE")" "$INFRA_COMPOSE"
+fi

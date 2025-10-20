@@ -43,7 +43,13 @@ COPY --from=php-deps /var/www/html/vendor/ /var/www/html/vendor/
 COPY --from=frontend-builder /app/public/build/ /var/www/html/public/build/
 
 # Create Laravel cache directories with proper permissions
-RUN mkdir -p /var/www/html/bootstrap/cache \
+# Switch to root to handle permissions, then back to www-data
+USER root
+RUN rm -rf /var/www/html/bootstrap/cache \
+    && mkdir -p /var/www/html/bootstrap/cache \
     && chown -R www-data:www-data /var/www/html/bootstrap/cache \
-    && chmod -R 755 /var/www/html/bootstrap/cache \
-    && composer dump-autoload --optimize --no-dev --no-scripts
+    && chmod -R 755 /var/www/html/bootstrap/cache
+
+# Switch back to www-data user and run composer
+USER www-data
+RUN composer dump-autoload --optimize --no-dev --no-scripts

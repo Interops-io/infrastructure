@@ -121,14 +121,36 @@ create_mariadb_user() {
     local environment=$2
     local container_name=$3
     local db_type=$4  # "shared" or "own"
+    local env_dir=$5   # Added to pass environment directory
     
     local db_name="${app_name}_${environment}"
     local username="${app_name}_${environment}"
     
-    # For shared database, generate new password. For project-specific, use existing password
+    # For shared database, use password from .env.database. For project-specific, use existing password
     local password
     if [[ "$db_type" == "shared" ]]; then
-        password=$(generate_password)
+        # Read the password from .env.database file that was generated during project creation
+        if [[ -f "$env_dir/.env.database" ]]; then
+            source "$env_dir/.env.database" 2>/dev/null || true
+            password="$DB_PASSWORD"
+        fi
+        
+        # Fallback to generating new password if not found in .env.database
+        if [[ -z "$password" ]]; then
+            log_warning "No password found in .env.database, generating new one"
+            password=$(generate_password)
+            
+            # Update .env.database with the generated password if the file exists
+            if [[ -f "$env_dir/.env.database" ]]; then
+                log_info "Updating .env.database with generated password"
+                # Use sed to replace or add the DB_PASSWORD line
+                if grep -q "^DB_PASSWORD=" "$env_dir/.env.database"; then
+                    sed -i.bak "s/^DB_PASSWORD=.*/DB_PASSWORD=$password/" "$env_dir/.env.database"
+                else
+                    echo "DB_PASSWORD=$password" >> "$env_dir/.env.database"
+                fi
+            fi
+        fi
     else
         # For project-specific database, use the password that was generated during project creation
         # This matches what's configured in docker-compose.yml environment variables
@@ -305,11 +327,11 @@ setup_project_database() {
                 fi
             else
                 if [[ "$config_type" == "shared" ]]; then
-                    local credentials=$(create_mariadb_user "$app_name" "$environment" "$container_name" "$config_type")
+                    local credentials=$(create_mariadb_user "$app_name" "$environment" "$container_name" "$config_type" "$env_dir")
                     update_env_database_file "$env_dir" "$credentials" "$config_type"
                 else
                     # For project-specific database, just verify setup
-                    create_mariadb_user "$app_name" "$environment" "$container_name" "$config_type"
+                    create_mariadb_user "$app_name" "$environment" "$container_name" "$config_type" "$env_dir"
                 fi
             fi
             ;;
