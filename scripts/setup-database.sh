@@ -48,13 +48,10 @@ create_database_init_script() {
     
     # Create database and user with direct MySQL commands
     docker exec mariadb-shared mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "
-        CREATE DATABASE IF NOT EXISTS \`${db_name}\`;
-        CREATE USER IF NOT EXISTS '${username}'@'172.%.%.%' IDENTIFIED BY '${password}';
-        CREATE USER IF NOT EXISTS '${username}'@'192.168.%.%' IDENTIFIED BY '${password}';
-        CREATE USER IF NOT EXISTS '${username}'@'10.%.%.%' IDENTIFIED BY '${password}';
-        GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${username}'@'172.%.%.%';
-        GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${username}'@'192.168.%.%';
-        GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${username}'@'10.%.%.%';
+    CREATE DATABASE IF NOT EXISTS \`${db_name}\`;
+    CREATE USER IF NOT EXISTS '${username}'@'10.%.%.%' IDENTIFIED BY '${password}';
+    ALTER USER '${username}'@'10.%.%.%' IDENTIFIED BY '${password}';
+    GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${username}'@'10.%.%.%';
         FLUSH PRIVILEGES;
     " 2>/dev/null
     
