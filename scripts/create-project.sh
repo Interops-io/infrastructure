@@ -420,7 +420,7 @@ fi)
 $(generate_volumes_section)
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.${PROJECT_NAME}-${suffix}.rule=Host(\`\$\${APP_DOMAIN:-${PROJECT_NAME}.localhost}\`)"
+      - "traefik.http.routers.${PROJECT_NAME}-${suffix}.rule=Host(\`${APP_DOMAIN:-${PROJECT_NAME}.localhost}\`)"
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.tls=true"
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.tls.certresolver=letsencrypt"
       - "traefik.http.services.${PROJECT_NAME}-${suffix}.loadbalancer.server.port=80"
