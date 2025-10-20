@@ -113,27 +113,44 @@ watch_queue() {
         process_deployment "$request_file"
     done
 
-    log "👁️ Starting inotify file watcher on $QUEUE_DIR (close_write events only)"
+    log "👁️ Starting inotify file watcher on $QUEUE_DIR (create + moved_to events)"
 
-    # Rationale:
-    #  - We previously watched create+moved_to; 'moved_to' fired when we renamed temp files or moved
-    #    completed requests into processed/, causing re-processing loops.
-    #  - We now watch only close_write on new .json files at the queue root.
-    #  - Exclude processed/ and failed/ subdirectories to avoid recursion.
+    # New approach:
+    #  - Watch create and moved_to so files written via temp -> final name are picked up.
+    #  - Before processing, validate JSON and ensure .status field is missing or null.
+    #  - Skip if status is processing/completed/failed to avoid loops.
+    #  - Still restrict to top-level directory.
 
-    inotifywait -m "$QUEUE_DIR" -e close_write --format '%w%f' --exclude '(^|/)processed/|(^|/)failed/' 2>/dev/null | while read filepath; do
-        # Only process top-level .json request files (ignore subdirectories)
+    inotifywait -m "$QUEUE_DIR" -e create -e moved_to --format '%w%f' --exclude '(^|/)processed/|(^|/)failed/' 2>/dev/null | while read filepath; do
         dir_part=$(dirname "$filepath")
         base_part=$(basename "$filepath")
         [ "$dir_part" = "$QUEUE_DIR" ] || continue
         case "$base_part" in
-            .*) continue ;;      # hidden
-            *.tmp) continue ;;   # temp
+            .*) continue ;;
+            *.tmp) continue ;;
             *.json)
-                if [ -f "$filepath" ]; then
-                    log "📥 New deployment request detected: $base_part"
-                    process_deployment "$filepath"
+                [ -f "$filepath" ] || continue
+                # Validate JSON structure quietly
+                if ! jq empty "$filepath" 2>/dev/null; then
+                    log "⚠️ Ignoring invalid JSON file: $base_part"
+                    continue
                 fi
+                file_status=$(jq -r 'try .status // ""' "$filepath" 2>/dev/null)
+                case "$file_status" in
+                    ""|null)
+                        log "📥 New deployment request detected (no status): $base_part"
+                        process_deployment "$filepath"
+                        ;;
+                    processing|completed|failed)
+                        # Already handled or in-flight
+                        continue
+                        ;;
+                    *)
+                        # Unknown status - skip to avoid unintended reprocessing
+                        log "ℹ️ Skipping file with status '$file_status': $base_part"
+                        continue
+                        ;;
+                esac
                 ;;
             *) continue ;;
         esac
