@@ -403,15 +403,6 @@ log "  suffix=${suffix:-UNSET}"
 log "  REPOSITORY_NAME=${REPOSITORY_NAME:-UNSET}"
 log "  ENVIRONMENT=${ENVIRONMENT:-UNSET}"
 
-log "Files in current directory:"
-ls -la
-log "Looking for docker-compose.yml..."
-if [ -f "docker-compose.yml" ]; then
-    log "✅ docker-compose.yml found"
-else
-    log "❌ docker-compose.yml not found in $(pwd)"
-fi
-
 # Set commit hash for image tagging (use short 8-character hash)
 export COMMIT_HASH="${COMMIT_SHA:0:8}"
 

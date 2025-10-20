@@ -381,6 +381,18 @@ generate_docker_compose() {
         development) suffix="development" ;;
     esac
     
+    # Determine domain for environment (same logic as in generate_env_files)
+    local app_domain
+    if [[ "$env" == "production" ]]; then
+        app_domain="$PROJECT_DOMAIN"
+    elif [[ "$env" == "staging" ]]; then
+        app_domain="staging.$PROJECT_DOMAIN"
+    elif [[ "$env" == "development" ]]; then
+        app_domain="develop.$PROJECT_DOMAIN"
+    else
+        app_domain="$env.$PROJECT_DOMAIN"
+    fi
+    
     log_info "Generating docker-compose.yml for $env environment..."
     
     cat > "$compose_file" << EOF
@@ -420,11 +432,11 @@ fi)
 $(generate_volumes_section)
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.${PROJECT_NAME}-${suffix}.rule=Host(\`${APP_DOMAIN:-${PROJECT_NAME}.localhost}\`)"
+      - "traefik.http.routers.${PROJECT_NAME}-${suffix}.rule=Host(\`${app_domain}\`)"
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.tls=true"
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.tls.certresolver=letsencrypt"
       - "traefik.http.services.${PROJECT_NAME}-${suffix}.loadbalancer.server.port=8080"
-    - "traefik.http.routers.${PROJECT_NAME}-${suffix}.middlewares=secure-headers@file"
+      - "traefik.http.routers.${PROJECT_NAME}-${suffix}.middlewares=secure-headers@file"
     networks:
       - web
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
