@@ -437,6 +437,7 @@ $(generate_volumes_section)
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.tls.certresolver=letsencrypt"
       - "traefik.http.services.${PROJECT_NAME}-${suffix}.loadbalancer.server.port=8080"
       - "traefik.http.routers.${PROJECT_NAME}-${suffix}.middlewares=secure-headers@file"
+      - "traefik.docker.network=web"
     networks:
       - web
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
