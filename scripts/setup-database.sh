@@ -54,7 +54,9 @@ create_database_init_script() {
     GRANT ALL PRIVILEGES ON \`${db_name}\`.* TO '${username}'@'10.%.%.%';
         FLUSH PRIVILEGES;
     " 2>/dev/null
-    
+
+    log_info "Database and user creation command executed with password: ${password}"
+
     if [ $? -eq 0 ]; then
         log_success "Database and user created successfully"
         return 0
