@@ -402,6 +402,7 @@ ENVEOF
 fi)
     environment:
       - APP_ENV=${env}
+      - PHP_OPCACHE_ENABLE=1
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]]; then
 cat << 'ENVEOF'
       - DB_HOST=mariadb-shared
@@ -471,6 +472,7 @@ ENVEOF
 fi)
     environment:
       - APP_ENV=${env}
+      - PHP_OPCACHE_ENABLE=1
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]]; then
 cat << 'ENVEOF'
       - DB_HOST=mariadb-shared
@@ -546,6 +548,7 @@ ENVEOF
 fi)
     environment:
       - APP_ENV=${env}
+      - PHP_OPCACHE_ENABLE=1
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]]; then
 cat << 'ENVEOF'
       - DB_HOST=mariadb-shared
