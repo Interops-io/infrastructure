@@ -159,6 +159,14 @@ create_mariadb_user() {
     if [[ "$db_type" == "shared" ]]; then
         # Always use mariadb-shared for shared DB
         create_database_init_script "$db_name" "$username" "$password" "mariadb-shared"
+        # Always update .env.database with the password used
+        if [[ -f "$env_dir/.env.database" ]]; then
+            if grep -q "^DB_PASSWORD=" "$env_dir/.env.database"; then
+                sed -i.bak "s/^DB_PASSWORD=.*/DB_PASSWORD=$password/" "$env_dir/.env.database"
+            else
+                echo "DB_PASSWORD=$password" >> "$env_dir/.env.database"
+            fi
+        fi
     else
         # Project-specific database - database and user already configured via docker-compose environment
         # Just verify the database is accessible
