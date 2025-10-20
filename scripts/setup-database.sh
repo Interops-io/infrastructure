@@ -44,8 +44,6 @@ create_database_init_script() {
     local username=$2
     local password=$3
     
-    log_info "Creating database and user for ${username}..."
-    
     # Create database and user with direct MySQL commands
     docker exec mariadb-shared mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "
     CREATE DATABASE IF NOT EXISTS \`${db_name}\`;
@@ -55,13 +53,9 @@ create_database_init_script() {
         FLUSH PRIVILEGES;
     " 2>/dev/null
 
-    log_info "Database and user creation command executed with password: ${password}"
-
     if [ $? -eq 0 ]; then
-        log_success "Database and user created successfully"
         return 0
     else
-        log_error "Failed to create database and user"
         return 1
     fi
 }
@@ -156,8 +150,6 @@ create_mariadb_user() {
         password="$MYSQL_ROOT_PASSWORD"  # This was loaded from DB_PASSWORD in .env.database
     fi
     
-    log_info "Creating MariaDB database and user for $app_name ($environment) in container: $container_name"
-    
     if [[ "$db_type" == "shared" ]]; then
         # Always use mariadb-shared for shared DB
         create_database_init_script "$db_name" "$username" "$password" "mariadb-shared"
@@ -177,9 +169,7 @@ create_mariadb_user() {
         docker exec "$container_name" mysql -u root -p"${MYSQL_ROOT_PASSWORD}" -e "SHOW DATABASES;" > /dev/null 2>&1
     fi
     
-    if [ $? -eq 0 ]; then
-        log_success "Database setup completed for $app_name ($environment)"
-        
+    if [ $? -eq 0 ]; then        
         if [[ "$db_type" == "shared" ]]; then
             # Return credentials for shared database
             echo "DB_DATABASE=$db_name"
