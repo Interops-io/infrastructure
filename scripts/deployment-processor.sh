@@ -102,44 +102,40 @@ process_deployment() {
 # Watch for new deployment requests using inotify
 watch_queue() {
     log "📁 Processing any existing deployment requests..."
-    
-    # Process any existing files first
+
+    # Process any existing files first (top-level only)
     for request_file in "$QUEUE_DIR"/*.json; do
-        # Check if file exists (glob might not match anything)
         [ -f "$request_file" ] || continue
-        
-        # Skip temporary files (still being written)
         case "$(basename "$request_file")" in
-            .*) continue ;;  # Hidden files (temp files start with .)
-            *.tmp) continue ;;  # Explicit temp files
+            .*) continue ;;  # Skip hidden
+            *.tmp) continue ;;
         esac
-        
-        # Process the request
         process_deployment "$request_file"
     done
-    
-    log "👁️ Starting inotify file watcher on $QUEUE_DIR"
-    
-    # Watch for new files using inotify (much more efficient than polling)
-    inotifywait -m "$QUEUE_DIR" -e create -e moved_to --format '%w%f' 2>/dev/null | while read filepath; do
-        # Only process .json files, ignore temporary files
-        case "$filepath" in
+
+    log "👁️ Starting inotify file watcher on $QUEUE_DIR (close_write events only)"
+
+    # Rationale:
+    #  - We previously watched create+moved_to; 'moved_to' fired when we renamed temp files or moved
+    #    completed requests into processed/, causing re-processing loops.
+    #  - We now watch only close_write on new .json files at the queue root.
+    #  - Exclude processed/ and failed/ subdirectories to avoid recursion.
+
+    inotifywait -m "$QUEUE_DIR" -e close_write --format '%w%f' --exclude '(^|/)processed/|(^|/)failed/' 2>/dev/null | while read filepath; do
+        # Only process top-level .json request files (ignore subdirectories)
+        dir_part=$(dirname "$filepath")
+        base_part=$(basename "$filepath")
+        [ "$dir_part" = "$QUEUE_DIR" ] || continue
+        case "$base_part" in
+            .*) continue ;;      # hidden
+            *.tmp) continue ;;   # temp
             *.json)
-                # Additional check to ensure file exists and isn't a temp file
                 if [ -f "$filepath" ]; then
-                    case "$(basename "$filepath")" in
-                        .*) continue ;;  # Skip hidden files
-                        *) 
-                            log "📥 New deployment request detected: $(basename "$filepath")"
-                            process_deployment "$filepath"
-                            ;;
-                    esac
+                    log "📥 New deployment request detected: $base_part"
+                    process_deployment "$filepath"
                 fi
                 ;;
-            *) 
-                # Ignore non-JSON files
-                continue
-                ;;
+            *) continue ;;
         esac
     done
 }
