@@ -396,13 +396,13 @@ generate_docker_compose() {
     log_info "Generating docker-compose.yml for $env environment..."
     
     cat > "$compose_file" << EOF
+name: ${PROJECT_NAME}_${env}
+
 services:
   app:
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
-    image: ${PROJECT_NAME}-app-${suffix}:\${COMMIT_HASH:-latest}
-    container_name: ${PROJECT_NAME}-app-${suffix}
     restart: unless-stopped
     env_file:
       - ../.env              # Base environment variables
@@ -471,8 +471,6 @@ EOF
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
-    image: ${PROJECT_NAME}-queue-${suffix}:\${COMMIT_HASH:-latest}
-    container_name: ${PROJECT_NAME}-queue-${suffix}
     restart: unless-stopped
     command: ["php", "/var/www/html/artisan", "queue:work", "--tries=3"]
     stop_signal: SIGTERM # Set this for graceful shutdown if you're using fpm-apache or fpm-nginx
@@ -529,8 +527,6 @@ EOF
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
-    image: ${PROJECT_NAME}-scheduler-${suffix}:\${COMMIT_HASH:-latest}
-    container_name: ${PROJECT_NAME}-scheduler-${suffix}
     restart: unless-stopped
     command: ["php", "/var/www/html/artisan", "schedule:work"]
     stop_signal: SIGTERM
@@ -609,13 +605,12 @@ EOF
         cat >> "$compose_file" << EOF
   redis:
     image: redis:7-alpine
-    container_name: ${PROJECT_NAME}-redis-${suffix}
     restart: unless-stopped
     command: redis-server ${redis_persistence} --loglevel warning --maxmemory ${redis_memory} --maxmemory-policy allkeys-lru
 $(if [[ "$env" == "production" ]]; then
 cat << ENVEOF
     volumes:
-      - ${PROJECT_NAME}_${suffix}_redis_data:/data
+      - redis_data:/data
 ENVEOF
 fi)
     networks:
@@ -635,7 +630,6 @@ EOF
         cat >> "$compose_file" << EOF
   mariadb:
     image: mariadb:10.11
-    container_name: ${PROJECT_NAME}-mariadb-${suffix}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${db_port}:3306"  # Localhost-only access for debugging
@@ -645,7 +639,7 @@ EOF
       MYSQL_USER: \${DB_USERNAME}
       MYSQL_PASSWORD: \${DB_PASSWORD}
     volumes:
-      - ${PROJECT_NAME}_${suffix}_mariadb_data:/var/lib/mysql
+      - mariadb_data:/var/lib/mysql
     networks:
       - database
     labels:
@@ -676,12 +670,12 @@ EOF
 volumes:
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]] && [[ "$env" == "production" ]]; then
 cat << ENVEOF
-  ${PROJECT_NAME}_${suffix}_redis_data:
+  redis_data:
 ENVEOF
 fi)
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
 cat << ENVEOF
-  ${PROJECT_NAME}_${suffix}_mariadb_data:
+  mariadb_data:
 ENVEOF
 fi)
 EOF
