@@ -399,7 +399,7 @@ generate_docker_compose() {
 name: ${PROJECT_NAME}_${env}
 
 services:
-  app:
+  ${PROJECT_NAME}-${suffix}-app:
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
@@ -407,28 +407,10 @@ services:
     env_file:
       - ../.env              # Base environment variables
       - .env                 # Environment-specific overrides
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
       - .env.database        # Database credentials (auto-generated)
-ENVEOF
-fi)
     environment:
       - APP_ENV=${env}
       - PHP_OPCACHE_ENABLE=1
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]]; then
-cat << 'ENVEOF'
-      - DB_HOST=mariadb-shared
-ENVEOF
-elif [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
-      - DB_HOST=mariadb
-ENVEOF
-fi)
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]]; then
-cat << 'ENVEOF'
-      - REDIS_HOST=redis
-ENVEOF
-fi)
 $(generate_volumes_section)
     labels:
       - "traefik.enable=true"
@@ -440,24 +422,20 @@ $(generate_volumes_section)
       - "traefik.docker.network=traefik_web"
     networks:
       - web
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
       - database
-ENVEOF
-fi)
 $(# Only add depends_on section if there are actual dependencies
 if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " queue " ]]; then
 cat << 'ENVEOF'
     depends_on:
 ENVEOF
 if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]]; then
-cat << 'ENVEOF'
-      - redis
+cat << ENVEOF
+      - ${PROJECT_NAME}-${suffix}-redis
 ENVEOF
 fi
 if [[ " ${SELECTED_SERVICES[*]} " =~ " queue " ]]; then
-cat << 'ENVEOF'
-      - queue-worker
+cat << ENVEOF
+      - ${PROJECT_NAME}-${suffix}-queue-worker
 ENVEOF
 fi
 fi)
@@ -467,7 +445,7 @@ EOF
     # Add queue worker if selected
     if [[ " ${SELECTED_SERVICES[*]} " =~ " queue " ]]; then
         cat >> "$compose_file" << EOF
-  queue-worker:
+  ${PROJECT_NAME}-${suffix}-queue-worker:
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
@@ -480,40 +458,18 @@ EOF
     env_file:
       - ../.env
       - .env
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
       - .env.database
-ENVEOF
-fi)
     environment:
       - APP_ENV=${env}
       - PHP_OPCACHE_ENABLE=1
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]]; then
-cat << 'ENVEOF'
-      - DB_HOST=mariadb-shared
-ENVEOF
-elif [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
-      - DB_HOST=mariadb
-ENVEOF
-fi)
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]]; then
-cat << 'ENVEOF'
-      - REDIS_HOST=redis
-ENVEOF
-fi)
 $(generate_volumes_section)
     networks:
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
       - database
-ENVEOF
-fi)
 $(# Only add depends_on section if there are actual dependencies for queue worker
 if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]]; then
-cat << 'ENVEOF'
+cat << ENVEOF
     depends_on:
-      - redis
+      - ${PROJECT_NAME}-${suffix}-redis
 ENVEOF
 fi)
 
@@ -523,7 +479,7 @@ EOF
     # Add scheduler if selected
     if [[ " ${SELECTED_SERVICES[*]} " =~ " scheduler " ]]; then
         cat >> "$compose_file" << EOF
-  scheduler:
+  ${PROJECT_NAME}-${suffix}-scheduler:
     build:
       context: ./source  # Source code cloned by webhook dispatcher
       dockerfile: Dockerfile
@@ -552,39 +508,17 @@ fi)
     env_file:
       - ../.env
       - .env
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
       - .env.database
-ENVEOF
-fi)
     environment:
       - APP_ENV=${env}
       - PHP_OPCACHE_ENABLE=1
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]]; then
-cat << 'ENVEOF'
-      - DB_HOST=mariadb-shared
-ENVEOF
-elif [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
-      - DB_HOST=mariadb
-ENVEOF
-fi)
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]]; then
-cat << 'ENVEOF'
-      - REDIS_HOST=redis
-ENVEOF
-fi)
     networks:
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
       - database
-ENVEOF
-fi)
 $(# Only add depends_on section if there are actual dependencies for scheduler
 if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]]; then
-cat << 'ENVEOF'
+cat << ENVEOF
     depends_on:
-      - redis
+      - ${PROJECT_NAME}-${suffix}-redis
 ENVEOF
 fi)
 
@@ -603,7 +537,7 @@ EOF
         fi
         
         cat >> "$compose_file" << EOF
-  redis:
+  ${PROJECT_NAME}-${suffix}-redis:
     image: redis:7-alpine
     restart: unless-stopped
     command: redis-server ${redis_persistence} --loglevel warning --maxmemory ${redis_memory} --maxmemory-policy allkeys-lru
@@ -628,7 +562,7 @@ EOF
         log_info "Assigning port $db_port for $PROJECT_NAME database debugging"
         
         cat >> "$compose_file" << EOF
-  mariadb:
+  ${PROJECT_NAME}-${suffix}-mariadb:
     image: mariadb:10.11
     restart: unless-stopped
     ports:
@@ -654,13 +588,9 @@ networks:
   web:
     external: true
     name: traefik_web
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database " ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << 'ENVEOF'
   database:
     external: true
     name: database_access
-ENVEOF
-fi)
 
 EOF
 
@@ -668,16 +598,8 @@ EOF
     if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]] && [[ "$env" == "production" ]] || [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
         cat >> "$compose_file" << EOF
 volumes:
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]] && [[ "$env" == "production" ]]; then
-cat << ENVEOF
   redis_data:
-ENVEOF
-fi)
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " database-own " ]]; then
-cat << ENVEOF
   mariadb_data:
-ENVEOF
-fi)
 EOF
     fi
 }
@@ -713,10 +635,8 @@ APP_DOMAIN=$app_domain
 FORCE_HTTPS=true
 ASSET_URL=https://\${APP_DOMAIN}
 
-$(if [[ " ${SELECTED_SERVICES[*]} " =~ " redis " ]]; then
-cat << 'ENVEOF'
 # Redis (Project-specific instance)
-REDIS_HOST=redis
+REDIS_HOST=${PROJECT_NAME}-${suffix}-redis
 REDIS_PORT=6379
 REDIS_PASSWORD=null
 REDIS_DB=0
@@ -726,8 +646,6 @@ CACHE_DRIVER=redis
 SESSION_DRIVER=redis
 SESSION_LIFETIME=120
 
-ENVEOF
-fi)
 $(if [[ " ${SELECTED_SERVICES[*]} " =~ " queue " ]]; then
 cat << 'ENVEOF'
 # Queue
@@ -765,7 +683,7 @@ EOF
 # This database runs in its own container with debugging port access
 
 DB_CONNECTION=mysql
-DB_HOST=mariadb
+DB_HOST=${PROJECT_NAME}-${suffix}-mariadb
 DB_PORT=3306
 DB_DATABASE=${PROJECT_NAME}_${env}
 DB_USERNAME=${PROJECT_NAME}_${env}
