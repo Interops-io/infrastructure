@@ -106,12 +106,13 @@ init_backup() {
             echo ""
             echo "S3 Compatible Storage Examples:"
             echo "  AWS S3: s3.amazonaws.com (or s3.us-east-1.amazonaws.com)"
-            echo "  Hetzner: nbg1.your-objectstorage.com (check your console)"
-            echo "  DigitalOcean: nyc3.digitaloceanspaces.com"
+            echo "  Hetzner Object Storage: fsn1.your-objectstorage.com (or nbg1.your-objectstorage.com)"
+            echo "  DigitalOcean Spaces: nyc3.digitaloceanspaces.com"
             echo "  Backblaze B2: s3.us-west-002.backblazeb2.com"
             echo ""
-            read -p "Enter S3 endpoint: " s3_endpoint
-            read -p "Enter S3 bucket: " s3_bucket
+            echo "NOTE: Enter endpoint WITHOUT https:// prefix"
+            read -p "Enter S3 endpoint (e.g., fsn1.your-objectstorage.com): " s3_endpoint
+            read -p "Enter S3 bucket name: " s3_bucket
             read -p "Enter AWS Access Key ID: " aws_access_key
             read -s -p "Enter AWS Secret Access Key: " aws_secret_key
             echo
@@ -459,7 +460,7 @@ case "${1:-full}" in
     "restore")
         restore_snapshot "$2" "$3"
         ;;
-    "--dry-run"|"dry-run")
+    "--dry-run"|"dry-run"|"test")
         DRY_RUN=true
         log_info "🧪 Dry run mode - testing configuration..."
         
@@ -473,19 +474,37 @@ case "${1:-full}" in
         log_success "✅ Configuration loaded"
         log_info "Repository: $RESTIC_REPOSITORY"
         
-        # Test restic connection
+        # Test restic installation
         if ! command -v restic >/dev/null 2>&1; then
             log_error "❌ Restic not installed"
             exit 1
         fi
+        log_success "✅ Restic is installed ($(restic version | head -n1))"
         
-        # Test repository access (but don't create backup)
+        # Test S3 credentials (if S3 backend)
+        if [[ "$RESTIC_REPOSITORY" == s3:* ]]; then
+            log_info "Testing S3 credentials..."
+            if [[ -n "$AWS_ACCESS_KEY_ID" && -n "$AWS_SECRET_ACCESS_KEY" ]]; then
+                log_success "✅ S3 credentials found"
+                log_info "Access Key: ${AWS_ACCESS_KEY_ID}"
+            else
+                log_error "❌ S3 credentials missing"
+                exit 1
+            fi
+        fi
+        
+        # Test repository access with better error handling
         log_info "Testing repository access..."
-        if timeout 30 restic --repo "$RESTIC_REPOSITORY" snapshots --latest 1 >/dev/null 2>&1; then
+        if restic snapshots --latest 1 2>&1 | tee /tmp/restic-test.log; then
             log_success "✅ Repository access successful"
+            local snapshot_count=$(restic snapshots --json 2>/dev/null | jq '. | length' 2>/dev/null || echo "unknown")
+            log_info "Found $snapshot_count snapshots"
         else
-            log_warning "⚠️  Repository access test timed out or failed"
-            log_info "This is normal for a newly initialized repository"
+            log_error "❌ Repository access failed"
+            log_info "Error details:"
+            cat /tmp/restic-test.log
+            rm -f /tmp/restic-test.log
+            exit 1
         fi
         
         # Test Docker access
@@ -493,7 +512,6 @@ case "${1:-full}" in
             log_error "❌ Docker access failed"
             exit 1
         fi
-        
         log_success "✅ Docker access successful"
         
         # Check backup directories
@@ -502,6 +520,18 @@ case "${1:-full}" in
         else
             log_error "❌ Infrastructure directory not found: $INFRASTRUCTURE_DIR"
             exit 1
+        fi
+        
+        # Test database access
+        log_info "Testing database access..."
+        if docker ps --format "{{.Names}}" | grep -q "mariadb-shared"; then
+            if docker exec mariadb-shared mysqladmin -u root -p"${MYSQL_ROOT_PASSWORD}" ping >/dev/null 2>&1; then
+                log_success "✅ MariaDB shared database accessible"
+            else
+                log_warning "⚠️  MariaDB accessible but credentials may be wrong"
+            fi
+        else
+            log_warning "⚠️  MariaDB shared container not running"
         fi
         
         log_success "✅ Dry run completed successfully - backup system is ready"
