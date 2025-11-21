@@ -49,7 +49,10 @@ log_error() {
 # Load backup configuration
 load_config() {
     if [[ -f "$BACKUP_CONFIG" ]]; then
+        # Use set -a to automatically export all variables from config file
+        set -a
         source "$BACKUP_CONFIG"
+        set +a
     else
         log_error "Backup configuration not found. Run: $0 init"
         exit 1
@@ -57,7 +60,9 @@ load_config() {
     
     # Load infrastructure environment variables for database access
     if [[ -f "$INFRASTRUCTURE_DIR/.env" ]]; then
+        set -a
         source "$INFRASTRUCTURE_DIR/.env"
+        set +a
     else
         log_warning "Infrastructure .env file not found - some backups may fail"
     fi
@@ -67,9 +72,6 @@ load_config() {
         log_error "Invalid backup configuration. Run: $0 init"
         exit 1
     fi
-    
-    export RESTIC_REPOSITORY
-    export RESTIC_PASSWORD
 }
 
 # Initialize restic repository
