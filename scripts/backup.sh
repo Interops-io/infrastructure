@@ -195,14 +195,28 @@ backup_databases() {
                     local db_pass=$(grep "^DB_PASSWORD=" "$env_database_file" 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "")
                     
                     if [[ -n "$db_name" && "$db_name" != "DB_DATABASE" && -n "$db_host" ]]; then
-                        # Check if the database host container is running
-                        if docker ps --format "table {{.Names}}" | grep -q "$db_host"; then
-                            log_info "Backing up database: $db_host/$db_name"
-                            docker exec "$db_host" mysqldump -u "$db_user" -p"$db_pass" "$db_name" \
-                                > "$backup_dir/${project}-${env}-database.sql" 2>/dev/null || \
-                                log_warning "Failed to backup database: $db_host/$db_name"
+                        # For shared database, use mariadb-shared container
+                        if [[ "$db_host" == "mariadb-shared" ]]; then
+                            if docker ps --format "{{.Names}}" | grep -q "^mariadb-shared$"; then
+                                log_info "Backing up database: $db_host/$db_name"
+                                docker exec mariadb-shared mysqldump -u "$db_user" -p"$db_pass" "$db_name" \
+                                    > "$backup_dir/${project}-${env}-database.sql" 2>/dev/null || \
+                                    log_warning "Failed to backup database: $db_host/$db_name (check credentials)"
+                            else
+                                log_warning "Shared database container not running: $db_host"
+                            fi
                         else
-                            log_warning "Database container not found or not running: $db_host"
+                            # For project-specific database, find the actual container name
+                            # Container name format: project_env_project-env-mariadb_1
+                            local actual_container="${project}_${env}_${db_host}_1"
+                            if docker ps --format "{{.Names}}" | grep -q "^${actual_container}$"; then
+                                log_info "Backing up database: $actual_container/$db_name"
+                                docker exec "$actual_container" mysqldump -u "$db_user" -p"$db_pass" "$db_name" \
+                                    > "$backup_dir/${project}-${env}-database.sql" 2>/dev/null || \
+                                    log_warning "Failed to backup database: $actual_container/$db_name (check credentials)"
+                            else
+                                log_warning "Database container not found or not running: $actual_container"
+                            fi
                         fi
                     fi
                 fi
