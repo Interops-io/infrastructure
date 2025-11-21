@@ -495,7 +495,7 @@ case "${1:-full}" in
         
         # Test repository access with better error handling
         log_info "Testing repository access..."
-        if restic snapshots --latest 1 2>&1 | tee /tmp/restic-test.log; then
+        if timeout 10 restic snapshots --latest 1 2>&1 | tee /tmp/restic-test.log; then
             log_success "✅ Repository access successful"
             local snapshot_count=$(restic snapshots --json 2>/dev/null | jq '. | length' 2>/dev/null || echo "unknown")
             log_info "Found $snapshot_count snapshots"
