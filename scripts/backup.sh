@@ -259,6 +259,12 @@ backup_project() {
             local volumes=$(docker-compose config --volumes 2>/dev/null || true)
             
             for volume in $volumes; do
+                # Skip redis volumes (redis data is ephemeral/cache)
+                if [[ "$volume" == *"redis"* ]]; then
+                    log_info "Skipping redis volume: $volume (ephemeral data)"
+                    continue
+                fi
+                
                 if docker volume ls | grep -q "$volume"; then
                     log_info "Backing up volume: $volume"
                     docker run --rm \
@@ -311,6 +317,12 @@ backup_infrastructure() {
     local compose_volumes=$(docker-compose config --volumes 2>/dev/null || true)
     
     for volume in $compose_volumes; do
+        # Skip redis volumes (redis data is ephemeral/cache)
+        if [[ "$volume" == *"redis"* ]]; then
+            log_info "Skipping redis volume: $volume (ephemeral data)"
+            continue
+        fi
+        
         if docker volume ls | grep -q "$volume"; then
             log_info "Backing up infrastructure volume: $volume"
             docker run --rm \
@@ -353,14 +365,60 @@ perform_backup() {
             ;;
         "full"|"")
             backup_infrastructure "$TEMP_BACKUP_DIR"
-            # Backup all projects
+            
+            # Create infrastructure snapshot
+            log_info "Creating infrastructure snapshot..."
+            hostname=$(hostname)
+            timestamp=$(date +"%Y%m%d_%H%M%S")
+            
+            restic backup "$TEMP_BACKUP_DIR" \
+                --tag "infrastructure" \
+                --tag "host:$hostname" \
+                --tag "date:$timestamp"
+            
+            # Clean temp directory
+            rm -rf "$TEMP_BACKUP_DIR"
+            mkdir -p "$TEMP_BACKUP_DIR/projects"
+            
+            # Backup each project separately with its own snapshot
             for project_dir in "$INFRASTRUCTURE_DIR/projects"/*; do
                 if [[ -d "$project_dir" ]]; then
-                    local project=$(basename "$project_dir")
+                    project=$(basename "$project_dir")
+                    
+                    # Clean and prepare temp directory for this project
+                    rm -rf "$TEMP_BACKUP_DIR"
+                    mkdir -p "$TEMP_BACKUP_DIR/projects"
+                    
                     backup_project "$project" "$TEMP_BACKUP_DIR"
+                    
+                    # Create project-specific snapshot
+                    log_info "Creating snapshot for project: $project..."
+                    timestamp=$(date +"%Y%m%d_%H%M%S")
+                    
+                    restic backup "$TEMP_BACKUP_DIR" \
+                        --tag "project:$project" \
+                        --tag "host:$hostname" \
+                        --tag "date:$timestamp"
+                    
+                    # Clean for next project
+                    rm -rf "$TEMP_BACKUP_DIR"
+                    mkdir -p "$TEMP_BACKUP_DIR/projects"
                 fi
             done
-            tag_suffix="-full"
+            
+            # Final cleanup
+            rm -rf "$TEMP_BACKUP_DIR"
+            
+            # Prune old snapshots
+            log_info "Pruning old snapshots..."
+            restic forget \
+                --keep-daily "$BACKUP_RETENTION_DAILY" \
+                --keep-weekly "$BACKUP_RETENTION_WEEKLY" \
+                --keep-monthly "$BACKUP_RETENTION_MONTHLY" \
+                --prune
+            
+            log_success "Full backup completed successfully!"
+            return
             ;;
         *)
             log_error "Invalid backup type: $backup_type"
