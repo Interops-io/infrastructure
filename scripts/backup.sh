@@ -195,13 +195,14 @@ backup_databases() {
                     local db_pass=$(grep "^DB_PASSWORD=" "$env_database_file" 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "")
                     
                     if [[ -n "$db_name" && "$db_name" != "DB_DATABASE" && -n "$db_host" ]]; then
-                        # For shared database, use mariadb-shared container
+                        # For shared database, use mariadb-shared container with root credentials
                         if [[ "$db_host" == "mariadb-shared" ]]; then
                             if docker ps --format "{{.Names}}" | grep -q "^mariadb-shared$"; then
                                 log_info "Backing up database: $db_host/$db_name"
-                                docker exec mariadb-shared mysqldump -u "$db_user" -p"$db_pass" "$db_name" \
+                                # Use root credentials for shared database
+                                docker exec mariadb-shared mysqldump -u root -p"${MYSQL_ROOT_PASSWORD}" "$db_name" \
                                     > "$backup_dir/${project}-${env}-database.sql" 2>/dev/null || \
-                                    log_warning "Failed to backup database: $db_host/$db_name (check credentials)"
+                                    log_warning "Failed to backup database: $db_host/$db_name (database may not exist)"
                             else
                                 log_warning "Shared database container not running: $db_host"
                             fi
@@ -211,6 +212,7 @@ backup_databases() {
                             local actual_container="${project}_${env}_${db_host}_1"
                             if docker ps --format "{{.Names}}" | grep -q "^${actual_container}$"; then
                                 log_info "Backing up database: $actual_container/$db_name"
+                                # Use project-specific credentials for project-specific database
                                 docker exec "$actual_container" mysqldump -u "$db_user" -p"$db_pass" "$db_name" \
                                     > "$backup_dir/${project}-${env}-database.sql" 2>/dev/null || \
                                     log_warning "Failed to backup database: $actual_container/$db_name (check credentials)"
