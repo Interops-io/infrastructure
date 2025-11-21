@@ -499,7 +499,7 @@ case "${1:-full}" in
         log_info "Testing repository access..."
         if timeout 10 restic snapshots --latest 1 2>&1 | tee /tmp/restic-test.log; then
             log_success "✅ Repository access successful"
-            local snapshot_count=$(restic snapshots --json 2>/dev/null | jq '. | length' 2>/dev/null || echo "unknown")
+            snapshot_count=$(restic snapshots --json 2>/dev/null | jq '. | length' 2>/dev/null || echo "unknown")
             log_info "Found $snapshot_count snapshots"
         else
             log_error "❌ Repository access failed"
