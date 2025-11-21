@@ -409,13 +409,27 @@ perform_backup() {
             # Final cleanup
             rm -rf "$TEMP_BACKUP_DIR"
             
-            # Prune old snapshots
-            log_info "Pruning old snapshots..."
-            restic forget \
+            # Prune old snapshots - do it separately per tag to avoid deleting project snapshots
+            log_info "Pruning old infrastructure snapshots..."
+            restic forget --tag infrastructure \
                 --keep-daily "$BACKUP_RETENTION_DAILY" \
                 --keep-weekly "$BACKUP_RETENTION_WEEKLY" \
                 --keep-monthly "$BACKUP_RETENTION_MONTHLY" \
                 --prune
+            
+            log_info "Pruning old project snapshots..."
+            # Get list of all project tags and prune each separately
+            for project_dir in "$INFRASTRUCTURE_DIR/projects"/*; do
+                if [[ -d "$project_dir" ]]; then
+                    project=$(basename "$project_dir")
+                    log_info "Pruning snapshots for project: $project..."
+                    restic forget --tag "project:$project" \
+                        --keep-daily "$BACKUP_RETENTION_DAILY" \
+                        --keep-weekly "$BACKUP_RETENTION_WEEKLY" \
+                        --keep-monthly "$BACKUP_RETENTION_MONTHLY" \
+                        --prune 2>/dev/null || true
+                fi
+            done
             
             log_success "Full backup completed successfully!"
             return
